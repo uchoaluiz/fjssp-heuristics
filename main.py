@@ -28,7 +28,7 @@ def parse_arguments():
         "--method",
         type=str,
         default="",
-        help="available methods:\n1. 'cbc' : to solve with CBC solver\n2. 'SA': to solve with simulated annealing",
+        help="available methods: 1. 'cbc': to solve with CBC solver | 2. 'SA': to solve with simulated annealing | 3. 'both': to solve with both methods",
     )
     args = parser.parse_args()
     return args
@@ -47,6 +47,7 @@ def main(*, args: Namespace):
         instance_path=instance_path,
         output_folder_path=output_data_path,
         output_file_name=args.output,
+        method=args.method
     ):
         print(f"> {message}")
 

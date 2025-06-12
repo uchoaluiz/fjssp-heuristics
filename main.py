@@ -2,7 +2,7 @@ from argparse import ArgumentParser, Namespace
 from pathlib import Path
 import os
 
-import src.fjsp_heurs as app
+import src.fjssp_heurs as app
 
 
 def parse_arguments():

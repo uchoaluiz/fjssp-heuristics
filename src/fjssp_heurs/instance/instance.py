@@ -14,7 +14,7 @@ class Instance:
         self.O = []
         self.M = set()
         self.M_i = {}  # M_i[i]: máquinas elegíveis para operação i
-        self.p = {}  # p[i, m]: tempo de processamento da operação i na máquina m
+        self.p = {}  # p[(i, m)]: tempo de processamento da operação i na máquina m
         self.job_of_op = {}  # job que contém a operação i
         self.O_j = []  # lista de operações para cada job
         self.P_j = []  # precedência (i, i') entre operações de um job
@@ -49,7 +49,7 @@ class Instance:
                         machine_options.append((machine, time))
                         self.M.add(machine)
                         self.M_i[op_id].add(machine)
-                        self.p[op_id, machine] = time
+                        self.p[(op_id, machine)] = time
                         idx += 2
 
                     operations.append(machine_options)

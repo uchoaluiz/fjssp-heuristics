@@ -4,6 +4,7 @@ from pathlib import Path
 class Instance:
     def __init__(self, input: Path) -> None:
         self.input_path = input
+        self._instance_name = input.stem
         self.build_instance()
 
     def build_instance(self) -> None:
@@ -71,6 +72,7 @@ class Instance:
                 self.O_m[m].append(i)
 
     def print(self, type: str = "sets") -> None:
+        print()
         print(":" * 50)
         print("printing built instance".center(50))
         print(":" * 50)

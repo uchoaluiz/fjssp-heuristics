@@ -1,0 +1,28 @@
+# Ignorar diretórios de cache e ambientes virtuais
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+# Pode ser que você utilize outros nomes para seus ambientes virtuais, adicione-os aqui
+# myenv/
+
+# Ignorar arquivos de dados ou logs gerados durante a execução
+*.log
+*.sqlite3
+db.sqlite3
+
+# Ignorar arquivos de configuração sensíveis (senhas, chaves de API, etc.)
+# Exemplo: se você tem um arquivo settings.py com informações sensíveis
+# settings.py
+
+# Ignorar arquivos de IDEs (opcional, mas comum)
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Ignorar notebooks Jupyter (se não quiser versioná-los)
+.ipynb_checkpoints/

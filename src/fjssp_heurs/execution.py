@@ -4,9 +4,7 @@ from .instance import instance
 from .processing import model
 
 
-def run(
-    *, instance_path: Path, output_folder_path: Path, output_file_name: str, method: str
-):
+def run(*, instance_path: Path, output_folder_path: Path, method: str):
     yield "loading instance"
 
     inst = instance.Instance(instance_path)
@@ -15,8 +13,8 @@ def run(
 
     if method == "cbc" or method == "both":
         yield "optimizing with cbc solver"
-        math_model = model.MathModel(instance=inst)
-        math_model.run()
+        math_model = model.MathModel(instance=inst, output_folder=output_folder_path)
+        math_model.run(show_sol=True, verbose=0, time_limit=1800)
 
     if method == "SA" or method == "both":
         yield "optimizing by simulated annealing"

@@ -16,7 +16,7 @@ def run(
 
     if method == "cbc" or method == "both":
         yield "optimizing with cbc solver"
-        math_model = model.Model()
+        math_model = model.Model(instance=instance_path)
 
     if method == "SA" or method == "both":
         yield "optimizing by simulated annealing"

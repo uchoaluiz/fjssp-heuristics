@@ -9,4 +9,3 @@ class Model:
 
     def _create_model(self) -> None:
         instance = self._instance
-        print(instance.jo)

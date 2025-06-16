@@ -27,6 +27,7 @@ class Instance:
             op_counter = 0
 
             for j in range(self.num_jobs):
+                self.P_j.append(list())
                 line = file.readline().strip()
                 tokens = list(map(int, line.split()))
                 num_operations = tokens[0]
@@ -59,7 +60,7 @@ class Instance:
                 self.O_j.append(job_ops)
 
                 for a, b in zip(job_ops[:-1], job_ops[1:]):
-                    self.P_j.append((a, b))
+                    self.P_j[j].append((a, b))
 
         self.O = list(self.job_of_op.keys())
         self.M = list(self.M)
@@ -69,43 +70,71 @@ class Instance:
             for m in self.M_i[i]:
                 self.O_m[m].append(i)
 
-    def print(self) -> None:
-        print("printing built instance:\n")
-        print(f"num_jobs: {self.num_jobs} | num_machines: {self.num_machines}")
-        for i, job in enumerate(self.jobs):
-            print(f"job {i}")
-            for j, operation in enumerate(job):
-                print(f"   operação {j}")
-                for machines in operation:
-                    print(f"      máquina: {machines[0]} | p_im: {machines[1]}")
-                print("\n")
-            print("\n")
+    def print(self, type: str = "sets") -> None:
+        print(":" * 50)
+        print("printing built instance".center(50))
+        print(":" * 50)
 
-        print(f"O : conjunto global de operações:\n{self.O}\n")
-        print(f"M : conjunto de máquinas:\n{self.M}\n")
+        print(f"\n#jobs: {self.num_jobs} | #machines: {self.num_machines}\n")
 
-        print("M_i: conjunto de máquinas elegíveis para a operação i:")
-        for oper, maqs in self.M_i.items():
-            print(f"M_{oper}: {maqs}")
+        if type in ["array", "all"]:
+            for i, job in enumerate(self.jobs):
+                for j, operation in enumerate(job):
+                    print(f"job {i} | operação {j}")
+                    for machines in operation:
+                        print(
+                            f"   > máquina: {machines[0]} | tempo_process (p_im): {machines[1]}"
+                        )
+                    print()
+                print("~" * 10, end="\n\n")
 
-        print(f"J : conjunto de jobs:\n{set(range(self.num_jobs))}\n")
+        if type in ["sets", "all"]:
+            print(f"O : conjunto global de operações:\n> {self.O}\n")
+            print(f"M : conjunto de máquinas:\n> {self.M}\n")
+            print(f"J : conjunto de jobs:\n> {set(range(self.num_jobs))}")
 
-        print("O_j: conjunto de operações do job j:")
-        for job, opers_job in enumerate(self.O_j):
-            print(f"O_{job}: {opers_job}\n")
+            print()
+            print("~" * 10)
 
-        print("P_j: sequência tecnológica do job j:")
-        print(self.P_j)
+            print("\nM_i: conjunto de máquinas elegíveis para a operação 'i':")
+            for oper, maqs in self.M_i.items():
+                print(f"   > M_{oper}: {maqs}")
 
-        print("O_m : operações que podem ser processadas na máquina m:")
-        for maq, opers in self.O_m.items():
-            print(f"O_{maq}: {opers}\n")
+            print()
+            print("~" * 10)
 
-        print("p_{i,m} : tempo de processamento da operação i na máquina m:")
-        for (oper, maq), process in self.p.items():
-            print(
-                f"p_{{oper},{maq}}: {process}\n"
-            )
+            print("\nO_j: conjunto de operações do job 'j':")
+            for job, opers_job in enumerate(self.O_j):
+                print(f"   > O_{job}: {opers_job}")
 
-        for oper, job in self.job_of_op.items():
-            print(f"a operação {oper} faz parte do job {job}\n")
+            print()
+            print("~" * 10)
+
+            print("\nP_j: sequência tecnológica do job 'j':")
+            for job, seqtec in enumerate(self.P_j):
+                print(f"   > job {job}: {self.P_j[job]}")
+
+            print()
+            print("~" * 10)
+
+            print("\nO_m : operações que podem ser processadas na máquina 'm':")
+            for maq, opers in self.O_m.items():
+                print(f"   > O_{maq}: {opers}")
+
+            print()
+            print("~" * 10)
+
+            print("\np_{i,m} : tempo de processamento da operação 'i' na máquina m:")
+            for (oper, maq), process in self.p.items():
+                print(f"   > p_({oper}, {maq}): {process}")
+
+            print()
+            print("~" * 10)
+
+            print("\nj(o) : job no qual a operação 'o' faz parte:")
+            for oper, job in self.job_of_op.items():
+                print(f"   > a operação {oper} faz parte do job {job}")
+
+            print()
+            print("~" * 10)
+            print()

@@ -6,6 +6,7 @@ __pycache__/
 .Python
 env/
 venv/
+files/output/
 # Pode ser que você utilize outros nomes para seus ambientes virtuais, adicione-os aqui
 # myenv/
 

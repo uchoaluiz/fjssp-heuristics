@@ -1,11 +1,13 @@
 from pathlib import Path
-
+import os
+import json
 
 class Instance:
     def __init__(self, input: Path) -> None:
         self.input_path = input
         self._instance_name = input.stem
         self.build_instance()
+        self.optimal_solution = self.get_optimal()
 
     def build_instance(self) -> None:
         self.jobs = []
@@ -140,3 +142,15 @@ class Instance:
             print()
             print("~" * 10)
             print()
+
+    def get_optimal(self) -> int:
+        json_path = os.path.join("files/instances", "instances.json")
+
+        with open(json_path, 'r') as file:
+            instances = json.load(file)
+        
+        for instance in instances:
+            if instance["name"] == self._instance_name:
+                return instance.get("optimum")
+        
+        return None

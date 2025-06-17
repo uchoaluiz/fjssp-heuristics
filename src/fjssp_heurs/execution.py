@@ -9,7 +9,8 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str):
 
     inst = instance.Instance(instance_path)
 
-    yield "instance succefully loaded"
+    yield f"instance {inst._instance_name} succefully loaded | optimal = {inst.optimal_solution}"
+    
 
     if method == "cbc" or method == "both":
         yield "optimizing with cbc solver"

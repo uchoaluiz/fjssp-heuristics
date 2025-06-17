@@ -152,7 +152,7 @@ class MathModel:
         status = self.model.optimize(max_seconds=time_limit)
         elapsed_time = timer.stop()
 
-        print(f"\n   > optimization finished | elapsed time: {elapsed_time}")
+        print(f"\n   > optimization finished | elapsed time: {elapsed_time} s")
 
         if self.model.num_solutions:
             if status == OptimizationStatus.FEASIBLE:
@@ -168,4 +168,4 @@ class MathModel:
                 ][0]
                 print(f"      > operação {i} | início: {start}, na máquina {machine}")
         else:
-            print("   > no feasible integer solution found :c")
+            print("   > no feasible integer solution found in time limit :c")

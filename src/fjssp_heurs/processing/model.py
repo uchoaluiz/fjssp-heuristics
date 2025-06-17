@@ -141,6 +141,12 @@ class MathModel:
         verbose: int = 0,
         time_limit: int = 1800,
     ) -> None:
+
+        def gap(
+            *, ub: float, lb: float
+        ) -> float:
+            return round((100 * (ub - lb) / ub), 4)
+
         if verbose not in [0, 1]:
             self.model.verbose = 0
         else:
@@ -155,12 +161,14 @@ class MathModel:
         print(f"\n   > optimization finished | elapsed time: {elapsed_time} s")
 
         if self.model.num_solutions:
+            makespan = self.c_max.x
+            
             if status == OptimizationStatus.FEASIBLE:
-                print("   > feasible integer solution found!")
+                print(f"   > feasible integer solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%")
             if status == OptimizationStatus.OPTIMAL:
-                print("   > optimal solution found!")
+                print(f"   > optimal solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%")
 
-            print(f"      > makespan: {self.c_max.x}")
+            print(f"      > makespan: {makespan}")
             for i in self._instance.O:
                 start = self.x[i].x
                 machine = [

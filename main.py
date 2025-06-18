@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 
 import src.fjssp_heurs as app
+from src.fjssp_heurs.utils.logger import LOGGER
 
 
 def parse_arguments():
@@ -27,6 +28,7 @@ def parse_arguments():
 
 
 def main(*, args: Namespace):
+    logger = LOGGER()
     data_path = Path("files")
     output_data_path = data_path.joinpath("output")
 
@@ -35,12 +37,21 @@ def main(*, args: Namespace):
 
     instance_path = Path(args.instance)
 
-    for message in app.run(
-        instance_path=instance_path,
-        output_folder_path=output_data_path,
-        method=args.method,
-    ):
-        print(f"> {message}")
+    logger.log("selected preferences:")
+    with logger:
+        logger.log(f"input path: {instance_path}")
+        logger.log(f"output path: {output_data_path}")
+        logger.log(f"method(s) to optimize FJSSP: {args.method}\n")
+
+    logger.log("starting program")
+    with logger:
+        for message in app.run(
+            instance_path=instance_path,
+            output_folder_path=output_data_path,
+            method=args.method,
+            logger=logger
+        ):
+            logger.log(message)
 
 
 if __name__ == "__main__":

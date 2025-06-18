@@ -1,12 +1,13 @@
-from ..instance.instance import Instance
-from ..
+from ...instance.instance import Instance
+from ...utils.logger import LOGGER
 
 import numpy as np
 
 
 class Solution:
-    def __init__(self, *, instance: Instance):
+    def __init__(self, *, instance: Instance, logger: LOGGER):
         self._instance = instance
+        self._logger = logger
         self._create_structure()
 
     def copy_solution(self, *, sol) -> None:
@@ -15,13 +16,20 @@ class Solution:
         self._obj = sol._obj
 
     def _create_structure(self) -> None:
-        self._assign_vect = np.empty(len(self._instance.O))
-        self._start_times_vect = np.empty(len(self._instance.O))
+        logger = self._logger
+        logger.log("building solution representation structure")
+
+        self._assign_vect = np.full(len(self._instance.O), np.nan)
+        self._start_times_vect = np.full(len(self._instance.O), np.nan)
         self._obj = 0
 
-        print("   > solution structure built")
+        logger.log("solution representation structure built")
     
     def get_objective(self, *, omega = 10) -> float:
+        if np.isnan(self._assign_vect).all() or np.isnan(self._start_times_vect).all():
+            self._obj = 0
+            return 0
+
         instance = self._instance
         start_times = self._start_times_vect
         assignments = self._assign_vect
@@ -32,7 +40,7 @@ class Solution:
         overlap_penalty = 0
 
         for m in instance.M:
-            ops_on_m = [i for i in operations if assignments[i] == m]
+            ops_on_m = instance.O_m[m]
 
             ops_on_m.sort(key=lambda i: start_times[i])
 
@@ -63,5 +71,12 @@ class Solution:
         return total_obj
     
     def print(self) -> None:
-        pass
+        inst = self._instance
+        logger = self._logger
 
+        logger.log("printing solution")
+        with logger:
+            logger.log(f"objective: {self.get_objective()}")
+            for op in inst.O:
+                logger.log(f"operation: {op} | start time: {self._start_times_vect[op]} | machine assigned: {self._assign_vect[op]}")
+        logger.breakline()

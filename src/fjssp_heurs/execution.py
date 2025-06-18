@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .processing.metaheuristic import solution
+from .processing.metaheuristic import solution, solbuilder
 from .instance import instance
 from .processing import model
 from .utils.logger import LOGGER
@@ -29,6 +29,9 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str, logger: L
         yield "solving FJSSP with simulated annealing"
         with logger:
             sol = solution.Solution(instance=inst, logger=logger)
-            sol.print()
+            # sol.print()
+
+            builder = solbuilder.SolutionBuilder(logger=logger)
+            builder.build_solution(solution=sol, machines_strategy= "grasp", sequence_strategy = "greedy")
 
 

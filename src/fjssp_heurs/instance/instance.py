@@ -1,10 +1,13 @@
 from pathlib import Path
-
+import os
+import json
 
 class Instance:
     def __init__(self, input: Path) -> None:
         self.input_path = input
+        self._instance_name = input.stem
         self.build_instance()
+        self.optimal_solution = self.get_optimal()
 
     def build_instance(self) -> None:
         self.jobs = []
@@ -14,7 +17,7 @@ class Instance:
         self.O = []
         self.M = set()
         self.M_i = {}  # M_i[i]: máquinas elegíveis para operação i
-        self.p = {}  # p[i, m]: tempo de processamento da operação i na máquina m
+        self.p = {}  # p[(i, m)]: tempo de processamento da operação i na máquina m
         self.job_of_op = {}  # job que contém a operação i
         self.O_j = []  # lista de operações para cada job
         self.P_j = []  # precedência (i, i') entre operações de um job
@@ -49,7 +52,7 @@ class Instance:
                         machine_options.append((machine, time))
                         self.M.add(machine)
                         self.M_i[op_id].add(machine)
-                        self.p[op_id, machine] = time
+                        self.p[(op_id, machine)] = time
                         idx += 2
 
                     operations.append(machine_options)
@@ -71,6 +74,7 @@ class Instance:
                 self.O_m[m].append(i)
 
     def print(self, type: str = "sets") -> None:
+        print()
         print(":" * 50)
         print("printing built instance".center(50))
         print(":" * 50)
@@ -138,3 +142,15 @@ class Instance:
             print()
             print("~" * 10)
             print()
+
+    def get_optimal(self) -> int:
+        json_path = os.path.join("files/instances", "instances.json")
+
+        with open(json_path, 'r') as file:
+            instances = json.load(file)
+        
+        for instance in instances:
+            if instance["name"] == self._instance_name:
+                return instance.get("optimum")
+        
+        return None

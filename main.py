@@ -16,14 +16,6 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default="output",
-        help="The desired name for the output file",
-    )
-
-    parser.add_argument(
         "-m",
         "--method",
         type=str,
@@ -46,8 +38,7 @@ def main(*, args: Namespace):
     for message in app.run(
         instance_path=instance_path,
         output_folder_path=output_data_path,
-        output_file_name=args.output,
-        method=args.method
+        method=args.method,
     ):
         print(f"> {message}")
 

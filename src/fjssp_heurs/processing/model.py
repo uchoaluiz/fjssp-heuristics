@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 class MathModel:
-    def __init__(self, instance: Instance, output_folder: Path) -> None:
+    def __init__(self, *, instance: Instance, output_folder: Path) -> None:
         self._instance = instance
         self._output_folder = output_folder
         self._create_model()
@@ -169,11 +169,14 @@ class MathModel:
                 print(f"   > optimal solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%")
 
             print(f"      > makespan: {makespan}")
-            for i in self._instance.O:
-                start = self.x[i].x
-                machine = [
-                    m for m in self._instance.M_i[i] if self.z.get((i, m), 0).x >= 0.99
-                ][0]
-                print(f"      > operação {i} | início: {start}, na máquina {machine}")
+
+            if show_sol:
+                for i in self._instance.O:
+                    start = self.x[i].x
+                    machine = [
+                        m for m in self._instance.M_i[i] if self.z.get((i, m), 0).x >= 0.99
+                    ][0]
+                    print(f"      > operação {i} | início: {start}, na máquina {machine}")
         else:
             print("   > no feasible integer solution found in time limit :c")
+        print()

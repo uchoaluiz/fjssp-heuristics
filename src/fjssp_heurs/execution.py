@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from .instance import instance
-from .processing import model
+from .processing import model, solution
 
 
 def run(*, instance_path: Path, output_folder_path: Path, method: str):
@@ -10,7 +10,7 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str):
     inst = instance.Instance(instance_path)
 
     yield f"instance {inst._instance_name} succefully loaded | known optimal = {inst.optimal_solution}"
-    
+
     if method == "cbc" or method == "both":
         yield "optimizing with cbc solver"
         math_model = model.MathModel(instance=inst, output_folder=output_folder_path)
@@ -18,4 +18,4 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str):
 
     if method == "SA" or method == "both":
         yield "optimizing by simulated annealing"
-        pass
+        sol = solution.Solution(instance=inst)

@@ -41,12 +41,12 @@ class MathModel:
         }
         c_max = self.model.add_var(name="c_max", var_type=CONTINUOUS, lb=0.0)
 
-        print(f"      > [{steps}] decision vars has been created")
+        print(f"      > [{steps}] decision vars created")
         steps += 1
 
         self.model.objective = minimize(c_max)
 
-        print(f"      > [{steps}] objective function has been defined")
+        print(f"      > [{steps}] objective function defined")
         steps += 1
 
         for i in instance.O:
@@ -57,7 +57,7 @@ class MathModel:
                 f"makespan_def_{i}",
             )
 
-        print(f"      > [{steps}] constraints R1 has been created")
+        print(f"      > [{steps}] constraints R1 created")
         steps += 1
 
         for j in range(instance.num_jobs):
@@ -72,7 +72,7 @@ class MathModel:
                     f"preced_{i}_{i_}",
                 )
 
-        print(f"      > [{steps}] constraints R2 has been created")
+        print(f"      > [{steps}] constraints R2 created")
         steps += 1
 
         for i in instance.O:
@@ -81,7 +81,7 @@ class MathModel:
                 f"machine_assign_{i}",
             )
 
-        print(f"      > [{steps}] constraints R3 has been created")
+        print(f"      > [{steps}] constraints R3created")
         steps += 1
 
         for m in instance.M:
@@ -124,7 +124,7 @@ class MathModel:
                         f"no_overlap_2_{i}_{j}_{m}",
                     )
 
-        print(f"      > [{steps}] constraints R4 & R5 has been created")
+        print(f"      > [{steps}] constraints R4 & R5 created")
         steps += 1
 
         self.x = x
@@ -132,7 +132,7 @@ class MathModel:
         self.y = y
         self.c_max = c_max
 
-        print("   > mathematical model has been completely built")
+        print("   > mathematical model completely built")
 
     def run(
         self,
@@ -141,10 +141,7 @@ class MathModel:
         verbose: int = 0,
         time_limit: int = 1800,
     ) -> None:
-
-        def gap(
-            *, ub: float, lb: float
-        ) -> float:
+        def gap(*, ub: float, lb: float) -> float:
             return round((100 * (ub - lb) / ub), 4)
 
         if verbose not in [0, 1]:
@@ -162,11 +159,15 @@ class MathModel:
 
         if self.model.num_solutions:
             makespan = self.c_max.x
-            
+
             if status == OptimizationStatus.FEASIBLE:
-                print(f"   > feasible integer solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%")
+                print(
+                    f"   > feasible integer solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%"
+                )
             if status == OptimizationStatus.OPTIMAL:
-                print(f"   > optimal solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%")
+                print(
+                    f"   > optimal solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%"
+                )
 
             print(f"      > makespan: {makespan}")
 
@@ -174,9 +175,13 @@ class MathModel:
                 for i in self._instance.O:
                     start = self.x[i].x
                     machine = [
-                        m for m in self._instance.M_i[i] if self.z.get((i, m), 0).x >= 0.99
+                        m
+                        for m in self._instance.M_i[i]
+                        if self.z.get((i, m), 0).x >= 0.99
                     ][0]
-                    print(f"      > operação {i} | início: {start}, na máquina {machine}")
+                    print(
+                        f"      > operação {i} | início: {start}, na máquina {machine}"
+                    )
         else:
             print("   > no feasible integer solution found in time limit :c")
         print()

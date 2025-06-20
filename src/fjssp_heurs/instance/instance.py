@@ -18,12 +18,12 @@ class Instance:
 
         self.O = []
         self.M = set()
-        self.M_i = {}  # M_i[i]: máquinas elegíveis para operação i
-        self.p = {}  # p[(i, m)]: tempo de processamento da operação i na máquina m
-        self.job_of_op = {}  # job que contém a operação i
+        self.M_i = dict()  # M_i[i]: máquinas elegíveis para operação i
+        self.p = dict()  # p[(i, m)]: tempo de processamento da operação i na máquina m
+        self.job_of_op = dict()  # job que contém a operação i
         self.O_j = []  # lista de operações para cada job
         self.P_j = []  # precedência (i, i') entre operações de um job
-        self.O_m = {}  # O_m[m]: operações que podem ser feitas na máquina m
+        self.O_m = dict()  # O_m[m]: operações que podem ser feitas na máquina m
 
         with open(self.input_path, "r") as file:
             first_line = file.readline().strip()

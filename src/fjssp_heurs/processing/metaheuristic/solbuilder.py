@@ -15,8 +15,16 @@ class SolutionBuilder:
         machines_strategy: str = "grasp",
         sequence_strategy: str = "greedy",
     ) -> None:
-        self.select_machines(solution=solution, strategy=machines_strategy)
-        self.sequence_operations(solution=solution, strategy=sequence_strategy)
+        logger = self._logger
+
+        logger.log("building initial solution with constructive heuristic")
+        with logger:
+            logger.log(f"machines assignment strategy: {machines_strategy} | ops scheduling in machines strategy: {sequence_strategy}")
+            with logger:
+                self.select_machines(solution=solution, strategy=machines_strategy)
+                logger.log("machines assignment done")
+                self.sequence_operations(solution=solution, strategy=sequence_strategy)
+                logger.log("ops scheduling in machines done")
 
     def select_machines(self, solution: Solution, strategy: str) -> None:
         if strategy == "greedy":
@@ -61,17 +69,35 @@ class SolutionBuilder:
             ]
             solution._assign_vect[o] = np.random.choice(restricted_candidates_list)
 
-    def select_machines_random(self, solution: Solut2ion) -> None:
+    def select_machines_random(self, solution: Solution) -> None:
         instance = solution._instance
         for o in instance.O:
             solution._assign_vect[o] = np.random.choice(instance.M_i[o])
 
     def sequence_by_remaining_work(self, solution: Solution) -> None:
         instance = solution._instance
+
+        for m in instance.M:
+            remaining_work = dict()
+            assigned_operations = [
+                op for op, machine in enumerate(solution._assign_vect) if machine == m
+            ]
+            for op in assigned_operations:
+                remaining_work[op] = 0.0
+                job = instance.job_of_op[op]
+                tech_seq = [op for op, _ in instance.P_j[job]]
+                tech_seq.append(instance.P_j[job][-1][1])
+                remaining_ops = tech_seq[tech_seq.index(op) + 1:]
+                for op_ in remaining_ops:
+                    remaining_work[op] += instance.p[(op_, solution._assign_vect[op_])]
+            solution._machine_sequence[m] = sorted(remaining_work, key=remaining_work.get, reverse=True)
+
+    def sequence_randomly(self, solution: Solution) -> None:
+        instance = solution._instance
+
         for m in instance.M:
             assigned_operations = [
                 op for op, machine in enumerate(solution._assign_vect) if machine == m
             ]
-
-    def sequence_randomly(self, solution: Solution) -> None:
-        pass
+            
+            solution._machine_sequence[m] = np.random.shuffle(assigned_operations)

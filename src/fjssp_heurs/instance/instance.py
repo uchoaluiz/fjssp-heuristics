@@ -4,6 +4,7 @@ import json
 
 from ..utils.logger import LOGGER
 
+
 class Instance:
     def __init__(self, input: Path) -> None:
         self.input_path = input
@@ -141,11 +142,11 @@ class Instance:
     def get_optimal(self) -> int:
         json_path = os.path.join("files/instances", "instances.json")
 
-        with open(json_path, 'r') as file:
+        with open(json_path, "r") as file:
             instances = json.load(file)
-        
+
         for instance in instances:
             if instance["name"] == self._instance_name:
                 return instance.get("optimum")
-        
+
         return None

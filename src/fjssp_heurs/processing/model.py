@@ -7,7 +7,9 @@ from pathlib import Path
 
 
 class MathModel:
-    def __init__(self, *, instance: Instance, output_folder: Path, logger: LOGGER) -> None:
+    def __init__(
+        self, *, instance: Instance, output_folder: Path, logger: LOGGER
+    ) -> None:
         self._instance = instance
         self._output_folder = output_folder
         self._logger = logger
@@ -18,7 +20,6 @@ class MathModel:
 
         logger.log("building mathematical model")
         with logger:
-
             instance = self._instance
             # instance.print(logger=logger, type="array")
 
@@ -53,7 +54,9 @@ class MathModel:
                 self.model += (
                     c_max
                     >= x.get(i, 0)
-                    + xsum(instance.p[(i, m)] * z.get((i, m), 0) for m in instance.M_i[i]),
+                    + xsum(
+                        instance.p[(i, m)] * z.get((i, m), 0) for m in instance.M_i[i]
+                    ),
                     f"makespan_def_{i}",
                 )
 
@@ -66,12 +69,13 @@ class MathModel:
                         x.get(i_, 0)
                         >= x.get(i, 0)
                         + xsum(
-                            instance.p[(i, m)] * z.get((i, m), 0) for m in instance.M_i[i]
+                            instance.p[(i, m)] * z.get((i, m), 0)
+                            for m in instance.M_i[i]
                         ),
                         f"preced_{i}_{i_}",
                     )
 
-            logger.log(f"constraints R2 created")
+            logger.log("constraints R2 created")
 
             for i in instance.O:
                 self.model += (
@@ -79,7 +83,7 @@ class MathModel:
                     f"machine_assign_{i}",
                 )
 
-            logger.log(f"constraints R3 created")
+            logger.log("constraints R3 created")
 
             for m in instance.M:
                 ops = instance.O_m[m]
@@ -181,7 +185,7 @@ class MathModel:
                                 if self.z.get((i, m), 0).x >= 0.99
                             ][0]
                             logger.log(
-                                f"operation {i} | start time: {start} | machine assigned {machine}"
+                                f"operation: {i} | start time: {start} | machine assigned: {machine} | end time: {start + self._instance.p[(i, machine)]}"
                             )
             else:
                 logger.log("no feasible integer solution found in time limit :c")

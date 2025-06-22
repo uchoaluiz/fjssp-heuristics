@@ -1,6 +1,8 @@
 from ..instance.instance import Instance
 from ..utils.crono import Crono
 from ..utils.logger import LOGGER
+from ..utils.plotting import plot_gantt
+from ..utils.gap import calcule_gap
 
 from mip import Model, xsum, minimize, CBC, OptimizationStatus, BINARY, CONTINUOUS
 from pathlib import Path
@@ -8,10 +10,11 @@ from pathlib import Path
 
 class MathModel:
     def __init__(
-        self, *, instance: Instance, output_folder: Path, logger: LOGGER
+        self, *, instance: Instance, output_path: Path, logger: LOGGER
     ) -> None:
         self._instance = instance
-        self._output_folder = output_folder
+        self._elapsed_time = 0.0
+        self._output_path = output_path
         self._logger = logger
         self._create_model()
 
@@ -135,58 +138,70 @@ class MathModel:
         logger.log("mathematical model completely built")
         logger.breakline()
 
-    def run(
+    def optimize(
         self,
         *,
-        show_sol: bool = True,
         verbose: int = 0,
         time_limit: int = 1800,
     ) -> None:
-        def gap(*, ub: float, lb: float) -> float:
-            return round((100 * (ub - lb) / ub), 4)
-
         logger = self._logger
 
         logger.log("starting CBC optimization")
 
-        if verbose not in [0, 1]:
-            self.model.verbose = 0
-        else:
-            self.model.verbose = verbose
+        self.model.verbose = verbose if verbose in [0, 1] else 0
 
         timer = Crono()
-        status = self.model.optimize(max_seconds=time_limit)
-        elapsed_time = timer.stop()
+        self._status = self.model.optimize(max_seconds=time_limit)
+        self._elapsed_time = timer.stop()
 
-        logger.log(f"optimization finished | elapsed time: {elapsed_time} s")
+        logger.log(
+            f"optimization finished | elapsed time: {self._elapsed_time} s | makespan: {self.c_max.x if self.model.num_solutions else None}"
+        )
+
+    def print(self, *, show_gantt: bool = True) -> None:
+        logger = self._logger
 
         with logger:
             if self.model.num_solutions:
                 makespan = self.c_max.x
+                gap = calcule_gap(ub=makespan, lb=self._instance.optimal_solution)
 
-                if status == OptimizationStatus.FEASIBLE:
-                    logger.log(
-                        f"feasible integer solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%"
-                    )
-                if status == OptimizationStatus.OPTIMAL:
-                    logger.log(
-                        f"optimal solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%"
-                    )
+                if self._status == OptimizationStatus.FEASIBLE:
+                    logger.log(f"feasible integer solution found | gap = {gap}%")
+                if self._status == OptimizationStatus.OPTIMAL:
+                    logger.log(f"optimal solution found | gap = {gap}%")
+
+                start_times = dict()
+                machines_assignments = dict()
 
                 with logger:
                     logger.log(f"makespan: {makespan}")
 
-                    if show_sol:
-                        for i in self._instance.O:
-                            start = self.x[i].x
-                            machine = [
-                                m
-                                for m in self._instance.M_i[i]
-                                if self.z.get((i, m), 0).x >= 0.99
-                            ][0]
-                            logger.log(
-                                f"operation: {i} | start time: {start} | machine assigned: {machine} | end time: {start + self._instance.p[(i, machine)]}"
-                            )
+                    for i in self._instance.O:
+                        start = self.x[i].x
+                        machine = [
+                            m
+                            for m in self._instance.M_i[i]
+                            if self.z.get((i, m), 0).x >= 0.99
+                        ][0]
+
+                        start_times[i] = start
+                        machines_assignments[i] = machine
+
+                        logger.log(
+                            f"operation: {i} | start time: {start} | machine assigned: {machine} | end time: {start + self._instance.p[(i, machine)]}"
+                        )
+                plot_gantt(
+                    start_times=start_times,
+                    machine_assignments=machines_assignments,
+                    processing_times=self._instance.p,
+                    job_of_op=self._instance.job_of_op,
+                    machine_set=self._instance.M,
+                    title=f"{self._instance._instance_name} - optimized by solver solution",
+                    verbose=show_gantt,
+                    output_file_path=self._output_path
+                    / f"{self._instance._instance_name} - optimized by solver solution.png",
+                )
             else:
                 logger.log("no feasible integer solution found in time limit :c")
         logger.breakline()

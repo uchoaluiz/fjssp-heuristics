@@ -31,7 +31,7 @@ class Metaheuristics:
             low_temperature: float,
             SAmax: int,
         ):
-            n = sol.inst.n
+            # n = sol.inst.n
             start_temperature = low_temperature
             accept = 0
             min_accept = int(gamma * SAmax)
@@ -39,15 +39,19 @@ class Metaheuristics:
                 h = 0
                 while h < SAmax:
                     h += 1
-                    j = np.random.randint(n)
-                    delta = ls.swap_bit(sol, j)
+                    # movement
+                    # j = np.random.randint(n)
+                    # delta = ls.swap_bit(sol, j)
+                    delta = 0
                     if delta > 0:
                         accept += 1
                     else:
                         rnd = np.random.uniform(0, 1)
                         if rnd < exp(delta / start_temperature):
                             accept += 1
-                    delta = ls.swap_bit(sol, j)
+                    # movement
+                    # delta = ls.swap_bit(sol, j)
+                    delta = 0
 
                 if accept < min_accept:
                     accept = 0

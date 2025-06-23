@@ -35,7 +35,7 @@ class Solution:
 
         logger.log("solution structure built")
 
-    def build_solution_graph(self) -> None:
+    def _build_solution_graph(self) -> None:
         instance = self._instance
 
         G = self._graph
@@ -77,6 +77,31 @@ class Solution:
         for op in no_succs:
             proc_time = instance.p[(op, self._assign_vect[op])]
             G.add_edge(op, "T", weight=proc_time)
+
+        self._graph = G
+
+    def _find_critical_path(self) -> tuple[list[int]]:
+        G = self._graph
+
+        dist = {node: float("-inf") for node in G.nodes}
+        dist["S"] = 0
+        pred = {node: None for node in G.nodes}
+
+        for u in nx.topological_sort(G):
+            for v in G.successors(u):
+                weight = G[u][v]["weight"]
+                if dist[v] < dist[u] + weight:
+                    dist[v] = dist[u] + weight
+                    pred[v] = u
+
+        path = []
+        current = "T"
+        while current:
+            path.append(current)
+            current = pred[current]
+        path.reverse()
+
+        return path
 
     def _compute_schedule(self) -> tuple[list[float], list[float], float]:
         def _get_op_priority(
@@ -217,6 +242,8 @@ class Solution:
         if overlap_penalty:
             with logger:
                 logger.log(f"overlaps in solution | penalty: {overlap_penalty}")
+
+        self._build_solution_graph()
 
         self._obj = makespan + omega * overlap_penalty
         return self._obj

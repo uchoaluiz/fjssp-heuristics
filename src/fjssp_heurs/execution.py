@@ -39,25 +39,17 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str, logger: L
             sol = Solution(
                 instance=inst, logger=logger, output_path=instance_output_path
             )
-            sol.print()
+            sol.print(show_gantt=False)
 
             logger.breakline()
 
             builder = SolutionBuilder(logger=logger)
-            builder._define_grasp_alpha(alpha=0.3)
 
-            builder.build_solution(solution=sol, machines_strategy="grasp")
-            sol.schedule_solution()
+            builder.build_solution(
+                solution=sol, machines_strategy="grasp", grasp_alpha=0.3
+            )
+            sol.evaluate_solution()
+
             sol.print(show_gantt=False)
 
             metaheur = Metaheuristics()
-            metaheur.sa(
-                sol=sol,
-                alpha=0.97,
-                k=2,
-                beta=1.1,
-                low_temperature=2,
-                final_temperature=0.01,
-                max_time=1800,
-            )
-            sol.print()

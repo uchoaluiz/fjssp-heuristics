@@ -14,9 +14,10 @@ def plot_gantt(
     machine_set: list[int],
     title: str = "Gantt Chart",
     show_labels: bool = True,
-    figsize=(12, 6),
+    figsize=(20, 6),
     verbose: bool = True,
     output_file_path: Path,
+    min_width_for_labels: float = 1.0,
 ) -> None:
     _, ax = plt.subplots(figsize=figsize)
 
@@ -53,14 +54,16 @@ def plot_gantt(
                 alpha=0.9,
             )
 
-            if show_labels:
+            if show_labels and p >= min_width_for_labels:
+                fontsize = max(4, min(8, p * 3))
+
                 ax.text(
                     s + p / 2,
                     y,
-                    f"Op {i}",
+                    f"{i}",
                     ha="center",
                     va="center",
-                    fontsize=8,
+                    fontsize=fontsize,
                     color="white",
                 )
 
@@ -98,7 +101,6 @@ def plot_gantt(
     )
 
     plt.tight_layout()
-
     plt.savefig(output_file_path)
 
     if verbose:

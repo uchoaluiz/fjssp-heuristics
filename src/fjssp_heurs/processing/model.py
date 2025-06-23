@@ -150,7 +150,7 @@ class MathModel:
 
         timer = Crono()
         self._status = self.model.optimize(max_seconds=time_limit)
-        self._elapsed_time = timer.stop()
+        self._elapsed_time = round(timer.stop(), 4)
 
         logger.log(
             f"optimization finished | elapsed time: {self._elapsed_time} s | makespan: {self.c_max.x if self.model.num_solutions else None}"
@@ -189,16 +189,24 @@ class MathModel:
                         logger.log(
                             f"operation: {i} | start time: {start} | machine assigned: {machine} | end time: {start + self._instance.p[(i, machine)]}"
                         )
+
+                gantt_path = (
+                    self._output_path
+                    / f"{self._instance._instance_name} - solver solution gantt.png"
+                )
+                logger.log(
+                    f"saving optimized solution's gantt graph into path: '{gantt_path}'"
+                )
+
                 plot_gantt(
                     start_times=start_times,
                     machine_assignments=machines_assignments,
                     processing_times=self._instance.p,
                     job_of_op=self._instance.job_of_op,
                     machine_set=self._instance.M,
-                    title=f"{self._instance._instance_name} - optimized by solver solution",
+                    title=f"{self._instance._instance_name} - solver solution gantt",
                     verbose=show_gantt,
-                    output_file_path=self._output_path
-                    / f"{self._instance._instance_name} - optimized by solver solution.png",
+                    output_file_path=gantt_path,
                 )
             else:
                 logger.log("no feasible integer solution found in time limit :c")

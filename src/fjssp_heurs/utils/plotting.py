@@ -101,7 +101,7 @@ def plot_gantt(
     )
 
     plt.tight_layout()
-    plt.savefig(output_file_path)
+    plt.savefig(output_file_path, dpi=800)
 
     if verbose:
         plt.show()

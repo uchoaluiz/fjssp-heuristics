@@ -5,6 +5,7 @@ from ...utils.gap import evaluate_gap
 
 from pathlib import Path
 import numpy as np
+import networkx as nx
 
 
 class Solution:
@@ -16,7 +17,9 @@ class Solution:
 
     def copy_solution(self, *, sol) -> None:
         self._assign_vect[:] = sol._assign_vect[:]
-        self._machine_sequence = sol.machine_sequence
+        self._machine_sequence = sol._machine_sequence
+        self._start_times = sol._start_times
+        self._graph = sol._graph
         self._obj = sol._obj
 
     def _create_structure(self) -> None:
@@ -27,9 +30,53 @@ class Solution:
         self._assign_vect = np.full(len(instance.O), np.nan)
         self._machine_sequence = [[] for _ in instance.M]
         self._start_times = np.zeros(len(instance.O))
+        self._graph = nx.DiGraph()
         self._obj = 0
 
         logger.log("solution structure built")
+
+    def build_solution_graph(self) -> None:
+        instance = self._instance
+
+        G = self._graph
+        G.add_node("S")  # nó inicial fictício
+        G.add_node("T")  # nó final fictício
+
+        for op in range(len(self._assign_vect)):
+            G.add_node(op)
+
+        for i, j in instance.P_j:
+            proc_time = instance.p[(i, self._assign_vect[i])]
+            G.add_edge(i, j, weight=proc_time)
+
+        for machine_seq in self._machine_sequence:
+            for i in range(len(machine_seq) - 1):
+                op_i = machine_seq[i]
+                op_j = machine_seq[i + 1]
+                proc_time = instance.p[(op_i, self._assign_vect[op_i])]
+                G.add_edge(op_i, op_j, weight=proc_time)
+
+        all_ops = set(range(len(self._assign_vect)))
+        successors = set(i for (i, j) in instance.P_j) | set(
+            i for seq in self._machine_sequence for i in seq[:-1]
+        )
+        no_preds = (
+            all_ops
+            - set(j for (i, j) in instance.P_j)
+            - set(seq[1] for seq in self._machine_sequence if len(seq) > 1)
+        )
+
+        for op in no_preds:
+            G.add_edge("S", op, weight=0)
+
+        no_succs = (
+            all_ops
+            - set(i for (i, j) in instance.P_j)
+            - set(seq[:-1] for seq in self._machine_sequence if len(seq) > 1)
+        )
+        for op in no_succs:
+            proc_time = instance.p[(op, self._assign_vect[op])]
+            G.add_edge(op, "T", weight=proc_time)
 
     def _compute_schedule(self) -> tuple[list[float], list[float], float]:
         def _get_op_priority(
@@ -130,7 +177,7 @@ class Solution:
 
         return start_times, finish_times, makespan, machines_sequence
 
-    def compute_solution(self, *, omega: int = 10) -> float:
+    def schedule_solution(self, *, omega: int = 10) -> float:
         if np.isnan(self._assign_vect).all():
             self._obj = 0
             return 0
@@ -184,7 +231,7 @@ class Solution:
             return None
 
         instance = self._instance
-        objective_value = self.compute_solution()
+        objective_value = self.schedule_solution()
 
         with logger:
             logger.log(

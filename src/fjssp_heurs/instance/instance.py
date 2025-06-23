@@ -91,9 +91,17 @@ class Instance:
                         logger.breakline()
 
         if type in ["sets", "all"]:
-            logger.log(f"O: set of global operations:\n> {self.O}\n")
-            logger.log(f"M: set of machines:\n> {self.M}\n")
-            logger.log(f"J: set of jobs:\n> {set(range(self.num_jobs))}")
+            logger.log("O: set of global operations:")
+            with logger:
+                logger.log(f"{self.O}")
+                logger.breakline()
+            logger.log("M: set of machines:")
+            with logger:
+                logger.log(f"{self.M}")
+                logger.breakline()
+            logger.log("J: set of jobs:")
+            with logger:
+                logger.log(f"{set(range(self.num_jobs))}")
 
             logger.breakline()
 

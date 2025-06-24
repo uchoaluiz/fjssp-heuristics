@@ -49,8 +49,10 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str, logger: L
 
             sol.evaluate_solution()
             sol.print(show_gantt=False)
+            sol.find_critical_path()
 
-            critical_path = sol.find_critical_path()
-            logger.log(f"critical path for metaheuristic solution: {critical_path}")
+            logger.log(
+                f"critical path for metaheuristic solution: {sol._critical_path}"
+            )
 
             metaheur = Metaheuristics()

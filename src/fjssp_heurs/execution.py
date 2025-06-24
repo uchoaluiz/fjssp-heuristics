@@ -39,17 +39,18 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str, logger: L
             sol = Solution(
                 instance=inst, logger=logger, output_path=instance_output_path
             )
+
             sol.print(show_gantt=False)
 
-            logger.breakline()
-
             builder = SolutionBuilder(logger=logger)
-
             builder.build_solution(
                 solution=sol, machines_strategy="grasp", grasp_alpha=0.3
             )
-            sol.evaluate_solution()
 
+            sol.evaluate_solution()
             sol.print(show_gantt=False)
+
+            critical_path = sol.find_critical_path()
+            logger.log(f"critical path for metaheuristic solution: {critical_path}")
 
             metaheur = Metaheuristics()

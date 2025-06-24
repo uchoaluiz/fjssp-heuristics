@@ -64,7 +64,7 @@ def plot_gantt(
                     ha="center",
                     va="center",
                     fontsize=fontsize,
-                    color="white",
+                    color="black",
                 )
 
             latest_end = max(latest_end, s + p)

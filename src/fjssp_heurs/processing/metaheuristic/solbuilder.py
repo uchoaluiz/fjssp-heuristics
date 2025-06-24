@@ -199,9 +199,11 @@ class SolutionBuilder:
         machines_sequence = list()
         for m in M:
             machines_sequence.append(list())
-            for op, start_time in enumerate(sorted(start_times)):
-                if m == solution._assign_vect[op]:
-                    machines_sequence[m].append(op)
+            for op in instance.O:
+                if solution._assign_vect[op] == m:
+                    machines_sequence[m].append((op, start_times[op]))
+            machines_sequence[m].sort(key=lambda item: item[1])
+            machines_sequence[m] = [item[0] for item in machines_sequence[m]]
 
         solution._start_times = start_times
         solution._finish_times = finish_times

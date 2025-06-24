@@ -25,6 +25,7 @@ class Solution:
         self._finish_times = np.zeros(len(instance.O))
         self._makespan = 0.0
         self._obj = 0.0
+        self._critical_path = list()
 
         logger.log("solution structure built")
 
@@ -68,16 +69,20 @@ class Solution:
 
         return self._obj
 
-    def find_critical_path(self):
+    def find_critical_path(self) -> None:
         instance = self._instance
 
         critical_ops = [
             op for op in instance.O if self._finish_times[op] == self._makespan
         ]
         critical_path = []
+        visited = set()
 
         while critical_ops:
             current_op = critical_ops.pop()
+            if current_op in visited:
+                continue
+            visited.add(current_op)
             critical_path.append(current_op)
 
             machine = int(self._assign_vect[current_op])
@@ -96,7 +101,7 @@ class Solution:
                 if self._finish_times[pred_job] == self._start_times[current_op]:
                     critical_ops.append(pred_job)
 
-        return list(reversed(critical_path))
+        self._critical_path = list(reversed(critical_path))
 
     def print(self, *, show_gantt: bool = True) -> None:
         logger = self._logger
@@ -141,5 +146,6 @@ class Solution:
         self._machine_sequence = sol._machine_sequence
         self._start_times = sol._start_times
         self._finish_times = sol._finish_times
-        self._obj = sol._obj
         self._makespan = sol._makespan
+        self._obj = sol._obj
+        self._critical_path = sol._critical_path

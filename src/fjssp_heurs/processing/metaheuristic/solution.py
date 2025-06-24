@@ -68,6 +68,36 @@ class Solution:
 
         return self._obj
 
+    def find_critical_path(self):
+        instance = self._instance
+
+        critical_ops = [
+            op for op in instance.O if self._finish_times[op] == self._makespan
+        ]
+        critical_path = []
+
+        while critical_ops:
+            current_op = critical_ops.pop()
+            critical_path.append(current_op)
+
+            machine = int(self._assign_vect[current_op])
+            machine_seq = self._machine_sequence[machine]
+            op_index = machine_seq.index(current_op)
+            if op_index > 0:
+                pred_machine = machine_seq[op_index - 1]
+                if self._finish_times[pred_machine] == self._start_times[current_op]:
+                    critical_ops.append(pred_machine)
+
+            job = instance.job_of_op[current_op]
+            job_ops = instance.O_j[job]
+            op_pos = job_ops.index(current_op)
+            if op_pos > 0:
+                pred_job = job_ops[op_pos - 1]
+                if self._finish_times[pred_job] == self._start_times[current_op]:
+                    critical_ops.append(pred_job)
+
+        return list(reversed(critical_path))
+
     def print(self, *, show_gantt: bool = True) -> None:
         logger = self._logger
         logger.log("printing solution")

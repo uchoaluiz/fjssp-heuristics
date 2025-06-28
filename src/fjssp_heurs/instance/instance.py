@@ -25,6 +25,7 @@ class Instance:
         self.O_j = []  # lista de operações para cada job
         self.P_j = []  # precedência (i, i') entre operações de um job
         self.O_m = dict()  # O_m[m]: operações que podem ser feitas na máquina m
+        self.S_j = dict()  # S_j[j]: lista da sequência tecnológica do job j
 
         with open(self.input_path, "r") as file:
             first_line = file.readline().strip()
@@ -75,6 +76,9 @@ class Instance:
         for i in self.O:
             for m in self.M_i[i]:
                 self.O_m[m].append(i)
+
+        for job in range(self.num_jobs):
+            self.S_j[job] = [i for (i, _) in self.P_j[job]] + [self.P_j[job][-1][1]]
 
     def print(self, *, logger: LOGGER, type: str = "sets") -> None:
         logger.log(f"#jobs: {self.num_jobs} | #machines: {self.num_machines}\n")

@@ -56,15 +56,15 @@ class Solution:
             return None
 
         instance = self._instance
-        objective_value = self.evaluate_solution()
+        makespan = self._makespan
 
         with logger:
             logger.log(
-                f"objective: {objective_value} | gap: {evaluate_gap(ub=objective_value, lb=self._instance.optimal_solution)}%"
+                f"makespan: {makespan} | gap: {evaluate_gap(ub=makespan, lb=self._instance.optimal_solution)}%"
             )
             for op in instance.O:
                 logger.log(
-                    f"operation: {op} | start time: {self._start_times[op]} | machine assigned: {self._assign_vect[op]} | end time: {self._start_times[op] + instance.p[(op, self._assign_vect[op])]}"
+                    f"operation: {op} | machine assigned: {self._assign_vect[op]} | start time: {self._start_times[op]} | end time: {self._start_times[op] + instance.p[(op, self._assign_vect[op])]}"
                 )
 
         gantt_path = (

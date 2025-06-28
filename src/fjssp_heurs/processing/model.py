@@ -187,7 +187,7 @@ class MathModel:
                         machines_assignments[i] = machine
 
                         logger.log(
-                            f"operation: {i} | start time: {start} | machine assigned: {machine} | end time: {start + self._instance.p[(i, machine)]}"
+                            f"operation: {i} | machine assigned: {machine} | start time: {start} | end time: {start + self._instance.p[(i, machine)]}"
                         )
 
                 gantt_path = (

@@ -46,7 +46,7 @@ class Solution:
             machine_assignment[machine] = ops_in_m
         return machine_assignment
 
-    def print(self, *, show_gantt: bool = True) -> None:
+    def print(self, *, show_gantt: bool = True, gantt_name: str) -> None:
         logger = self._logger
         logger.log("printing solution")
 
@@ -69,7 +69,7 @@ class Solution:
 
         gantt_path = (
             self._output_path
-            / f"{self._instance._instance_name} - heuristic solution gantt.png"
+            / f"{self._instance._instance_name} - gantt - {gantt_name}.png"
         )
         logger.log(f"saving solution's gantt graph into path: '{gantt_path}'")
 
@@ -79,7 +79,7 @@ class Solution:
             processing_times=instance.p,
             job_of_op=instance.job_of_op,
             machine_set=instance.M,
-            title=f"{self._instance._instance_name} - heuristic solution gantt",
+            title=f"{self._instance._instance_name} - Gantt - {gantt_name}",
             verbose=show_gantt,
             output_file_path=gantt_path,
         )

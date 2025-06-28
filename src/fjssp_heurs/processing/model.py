@@ -192,7 +192,7 @@ class MathModel:
 
                 gantt_path = (
                     self._output_path
-                    / f"{self._instance._instance_name} - solver solution gantt.png"
+                    / f"{self._instance._instance_name} - gantt - solver solution.png"
                 )
                 logger.log(
                     f"saving optimized solution's gantt graph into path: '{gantt_path}'"
@@ -204,7 +204,7 @@ class MathModel:
                     processing_times=self._instance.p,
                     job_of_op=self._instance.job_of_op,
                     machine_set=self._instance.M,
-                    title=f"{self._instance._instance_name} - solver solution gantt",
+                    title=f"{self._instance._instance_name} - Gantt - solver solution",
                     verbose=show_gantt,
                     output_file_path=gantt_path,
                 )

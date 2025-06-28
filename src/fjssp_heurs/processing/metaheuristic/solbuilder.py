@@ -33,41 +33,32 @@ class SolutionBuilder:
                     strategy=machines_strategy,
                     grasp_alpha=grasp_alpha,
                 )
-                logger.log("[2] machines assignment done")
+                logger.log("[1] machines assignment done")
 
                 with logger:
-                    for machine in solution._instance.M:
-                        ops_in_m = list()
-                        for op, m in enumerate(solution._assign_vect):
-                            if machine == m:
-                                ops_in_m.append(op)
-                        if ops_in_m:
-                            logger.log(
-                                f"operations assigned to machine {machine}: {ops_in_m}"
-                            )
-                self.compute_schedule(solution=solution)
-                logger.log("[3] schedule computing done")
+                    machines_assignment = solution._get_machines_assignment()
+                    for machine, ops_in_m in machines_assignment.items():
+                        logger.log(
+                            f"operations assigned to machine {machine}: {set(ops_in_m)}"
+                        )
+
+                self.schedule(solution=solution)
+
+                logger.log("[2] scheduling done")
 
         logger.log("initial solution built")
 
     def select_machines(
         self, solution: Solution, strategy: str = "grasp", grasp_alpha: float = 0.35
     ) -> None:
-        logger = self._logger
-
         if strategy == "greedy":
-            logger.log("[1] defined machines assignment strategy to greedy")
             self._select_machines_greedy(solution)
 
         elif strategy == "grasp":
             self._define_grasp_alpha(alpha=grasp_alpha)
-            logger.log(
-                f"[1] defined machines assignment strategy to grasp | alpha set to = {grasp_alpha}"
-            )
             self._select_machines_grasp(solution)
 
         else:
-            logger.log("[1] defined machines assignment strategy to random")
             self._select_machines_random(solution)
 
     def _select_machines_greedy(self, solution: Solution) -> None:
@@ -104,7 +95,10 @@ class SolutionBuilder:
         for o in instance.O:
             solution._assign_vect[o] = np.random.choice(list(instance.M_i[o]))
 
-    def compute_schedule(self, *, solution: Solution) -> None:
+    def schedule(self, *, solution: Solution) -> None:
+        self._schedule_machine_by_machine(solution=solution)
+
+    def _schedule_machine_by_machine(self, *, solution: Solution) -> None:
         def _get_op_priority(
             *, op: int, solution: Solution, current_machine: int
         ) -> tuple[float, float, float, int]:
@@ -148,11 +142,10 @@ class SolutionBuilder:
         scheduled_ops = set()
         machine_time = {m: 0.0 for m in M}
 
-        step = 0
         while len(scheduled_ops) < len(O):
             progress_made = False
 
-            for m in M:
+            for m in sorted(M, key=lambda m: machine_time[m]):
                 machine_ops = [
                     o
                     for o in O
@@ -191,8 +184,6 @@ class SolutionBuilder:
 
             if not progress_made:
                 raise Exception("deadlock: no operation could be scheduled.")
-
-            step += 1
 
         makespan = max(finish_times)
 

@@ -16,6 +16,11 @@ class MathModel:
         self._elapsed_time = 0.0
         self._output_path = output_path
         self._logger = logger
+
+        self._makespan = 0.0
+        self._assign_vect = list()
+        self._start_times = list()
+
         self._create_model()
 
     def _create_model(self) -> None:
@@ -152,8 +157,28 @@ class MathModel:
         self._status = self.model.optimize(max_seconds=time_limit)
         self._elapsed_time = round(timer.stop(), 4)
 
+        self._makespan = self.c_max.x if self.model.num_solutions else None
+
+        self._assign_vect = [
+            machine
+            for op in self._instance.O
+            for machine in self._instance.M_i[op]
+            if self.z.get((op, machine), 0).x == 1
+        ]
+
+        self._start_times = [self.x.get((op), 0).x for op in self._instance.O]
+
+        self._machine_assignment = list()
+        for machine in self._instance.M:
+            ops_in_m = list()
+            for op, m in enumerate(self._assign_vect):
+                if machine == m:
+                    ops_in_m.append(op)
+            ops_in_m = sorted(ops_in_m, key=lambda i: self._start_times[i])
+            self._machine_assignment.append(ops_in_m)
+
         logger.log(
-            f"optimization finished | elapsed time: {self._elapsed_time} s | makespan: {self.c_max.x if self.model.num_solutions else None}"
+            f"optimization finished | elapsed time: {self._elapsed_time} s | makespan: {self._makespan}"
         )
 
     def print(self, *, show_gantt: bool = True) -> None:

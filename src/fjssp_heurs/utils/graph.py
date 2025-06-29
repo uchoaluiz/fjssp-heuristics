@@ -64,8 +64,6 @@ class DAG:
     def _add_disjunctive_edge(self, machine, from_node, to_node):
         if machine not in self._disjunctive_edge_groups:
             self._disjunctive_edge_groups[machine] = []
-
-        print(f"added disjunctive edge: {from_node} -> {to_node}")
         self._disjunctive_edge_groups[machine].append((from_node, to_node))
 
     def draw(
@@ -201,7 +199,7 @@ class FJSSPGraph:
         instance = self._instance
         machines_assignment = self._machines_assignment
 
-        for machine, ops in machines_assignment.items():
+        for machine, ops in enumerate(machines_assignment):
             edges = list(combinations(ops, 2))
             for _from, _to in edges:
                 if _from != _to:

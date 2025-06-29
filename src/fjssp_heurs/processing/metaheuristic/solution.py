@@ -36,16 +36,6 @@ class Solution:
 
         logger.log("solution structure built")
 
-    def _get_machines_assignment(self) -> str:
-        machine_assignment = dict()
-        for machine in self._instance.M:
-            ops_in_m = list()
-            for op, m in enumerate(self._assign_vect):
-                if machine == m:
-                    ops_in_m.append(op)
-            machine_assignment[machine] = ops_in_m
-        return machine_assignment
-
     def print(self, *, show_gantt: bool = True, gantt_name: str) -> None:
         logger = self._logger
         logger.log("printing solution")

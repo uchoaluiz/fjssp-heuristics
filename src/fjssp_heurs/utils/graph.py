@@ -14,6 +14,8 @@ class DAG:
         self._graph = nx.DiGraph()
         self._positions = dict()
         self._disjunctive_edge_groups = dict()
+        self._edges = list()
+        self._edge_weights = dict()
 
         self.build_instance_graph()
 
@@ -36,6 +38,7 @@ class DAG:
 
     def _add_dependency(self, *, from_node: int, to_node: int):
         self._graph.add_edge(from_node, to_node)
+        self._edges.append((from_node, to_node))
 
     def _add_artificial_nodes(self):
         instance = self._instance
@@ -60,6 +63,7 @@ class DAG:
         for ops in instance.S_j.values():
             self._graph.add_edge("S", ops[0])
             self._graph.add_edge(ops[-1], "V")
+            self._edges.append((ops[-1], "V"))
 
     def _add_disjunctive_edge(self, machine, from_node, to_node):
         if machine not in self._disjunctive_edge_groups:
@@ -73,6 +77,7 @@ class DAG:
         title: str,
         no_disjunctives: bool = False,
         arrowstyle: str = "->",
+        show_weights: bool = False,
     ):
         plt.figure(figsize=(12, 6))
 
@@ -166,6 +171,18 @@ class DAG:
             )
             legend_patches.append(patch)
 
+        if show_weights and self._edge_weights:
+            edge_labels = {
+                (u, v): f"{self._edge_weights.get((u, v), '')}" for u, v in self._edges
+            }
+            nx.draw_networkx_edge_labels(
+                self._graph,
+                pos=self._positions,
+                edge_labels=edge_labels,
+                font_color="red",
+                font_size=8,
+            )
+
         plt.legend(
             handles=legend_patches,
             loc="lower center",
@@ -187,13 +204,30 @@ class FJSSPGraph:
         self,
         *,
         instance: Instance,
-        machines_assignment: dict[int, list[int]],
+        machines_assignment: list[list[int]],
         tech_disjunctives: bool = False,
     ):
         self._instance = instance
         self._machines_assignment = machines_assignment
         self._dag = DAG(instance=instance)
         self.create_disjunctives(tech_seq_disjunctives=tech_disjunctives)
+        self._set_edge_weights()
+
+    def _set_edge_weights(self):
+        instance = self._instance
+        edges = self._dag._edges
+
+        op_machine_map = {
+            op: machine
+            for op in instance.O
+            for machine, ops in enumerate(self._machines_assignment)
+            if op in ops
+        }
+
+        for edge_from, edge_to in edges:
+            self._dag._edge_weights[(edge_from, edge_to)] = instance.p[
+                (edge_from, op_machine_map[edge_from])
+            ]
 
     def create_disjunctives(self, *, tech_seq_disjunctives: bool = False):
         instance = self._instance
@@ -221,10 +255,12 @@ class FJSSPGraph:
         title: str,
         show_no_disjunctives: bool = False,
         arrowstyle: str = "->",
+        show_weights: bool = False,
     ):
         self._dag.draw(
             output_path=output_path,
             title=title,
             no_disjunctives=show_no_disjunctives,
             arrowstyle=arrowstyle,
+            show_weights=show_weights,
         )

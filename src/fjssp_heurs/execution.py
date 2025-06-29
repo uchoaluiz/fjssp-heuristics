@@ -6,6 +6,7 @@ from .instance.instance import Instance
 from .processing.model import MathModel
 from .utils.logger import LOGGER
 from .processing.metaheuristic.metaheuristics import Metaheuristics
+from .utils.graph import FJSSPGraph
 
 
 def run(*, instance_path: Path, output_folder_path: Path, method: str, logger: LOGGER):
@@ -15,6 +16,19 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str, logger: L
 
     instance_output_path = output_folder_path / inst._instance_name
     instance_output_path.mkdir(exist_ok=True)
+
+    inst_machines_assingment = [ops for ops in inst.O_m.values()]
+    instance_graph = FJSSPGraph(
+        instance=inst,
+        machines_assignment=inst_machines_assingment,
+        tech_disjunctives=False,
+    )
+    instance_graph.draw_dag(
+        output_path=instance_output_path,
+        title=f"{inst._instance_name} - DAG - instance",
+        show_no_disjunctives=True,
+        arrowstyle="-",
+    )
 
     """
     logger.log("printing built instance")
@@ -32,6 +46,16 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str, logger: L
             )
             math_model.optimize(verbose=0, time_limit=5)
             math_model.print(show_gantt=False)
+            solver_dag = FJSSPGraph(
+                instance=inst,
+                machines_assignment=math_model._machine_assignment,
+                tech_disjunctives=True,
+            )
+            solver_dag.draw_dag(
+                output_path=instance_output_path,
+                title=f"{inst._instance_name} - DAG - solver solution",
+                show_no_disjunctives=False,
+            )
 
     if method == "SA" or method == "both":
         yield "solving FJSSP with simulated annealing"
@@ -49,5 +73,16 @@ def run(*, instance_path: Path, output_folder_path: Path, method: str, logger: L
                 grasp_alpha=0.3,
             )
             sol.print(show_gantt=False, gantt_name="initial solution")
+
+            heur_sol_dag = FJSSPGraph(
+                instance=inst,
+                machines_assignment=sol._machine_sequence,
+                tech_disjunctives=True,
+            )
+            heur_sol_dag.draw_dag(
+                output_path=instance_output_path,
+                title=f"{inst._instance_name} - DAG - heur initial solution",
+                show_no_disjunctives=False,
+            )
 
             metaheur = Metaheuristics()

@@ -36,8 +36,8 @@ class SolutionBuilder:
                 logger.log("[1] machines assignment done")
 
                 with logger:
-                    machines_assignment = solution._get_machines_assignment()
-                    for machine, ops_in_m in machines_assignment.items():
+                    machines_assignment = solution._machine_sequence
+                    for machine, ops_in_m in enumerate(machines_assignment):
                         logger.log(
                             f"operations assigned to machine {machine}: {set(ops_in_m)}"
                         )

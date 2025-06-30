@@ -36,8 +36,11 @@ class DAG:
         self._graph.add_node(op)
         self._positions[op] = (pos_x, -pos_y)
 
-    def _add_dependency(self, *, from_node: int, to_node: int):
-        self._graph.add_edge(from_node, to_node)
+    def _add_dependency(self, *, from_node: int, to_node: int, weight: float = 0.0):
+        if weight:
+            self._graph.add_edge(from_node, to_node, weight=weight)
+        else:
+            self._graph.add_edge(from_node, to_node)
         self._edges.append((from_node, to_node))
 
     def _add_artificial_nodes(self):
@@ -61,7 +64,7 @@ class DAG:
         self._positions["V"] = (max_x + 1, center_y)
 
         for ops in instance.S_j.values():
-            self._graph.add_edge("S", ops[0])
+            self._graph.add_edge("S", ops[0], weight=0)
             self._graph.add_edge(ops[-1], "V")
             self._edges.append((ops[-1], "V"))
 
@@ -100,6 +103,18 @@ class DAG:
         color_map = cm.get_cmap("tab10")
         machines = list(self._disjunctive_edge_groups.keys())
         n_colors = len(machines)
+
+        if show_weights and self._edge_weights:
+            edge_labels = {
+                (u, v): f"{self._edge_weights.get((u, v), '')}" for u, v in self._edges
+            }
+            nx.draw_networkx_edge_labels(
+                self._graph,
+                pos=self._positions,
+                edge_labels=edge_labels,
+                font_color="red",
+                font_size=8,
+            )
 
         if no_disjunctives:
             plt.title(f"{title} - without disjunctive")
@@ -171,18 +186,6 @@ class DAG:
             )
             legend_patches.append(patch)
 
-        if show_weights and self._edge_weights:
-            edge_labels = {
-                (u, v): f"{self._edge_weights.get((u, v), '')}" for u, v in self._edges
-            }
-            nx.draw_networkx_edge_labels(
-                self._graph,
-                pos=self._positions,
-                edge_labels=edge_labels,
-                font_color="red",
-                font_size=8,
-            )
-
         plt.legend(
             handles=legend_patches,
             loc="lower center",
@@ -210,7 +213,7 @@ class FJSSPGraph:
         self._instance = instance
         self._machines_assignment = machines_assignment
         self._dag = DAG(instance=instance)
-        self.create_disjunctives(tech_seq_disjunctives=tech_disjunctives)
+        self.create_disjunctives(same_job_disjunctives=tech_disjunctives)
         self._set_edge_weights()
 
     def _set_edge_weights(self):
@@ -228,8 +231,11 @@ class FJSSPGraph:
             self._dag._edge_weights[(edge_from, edge_to)] = instance.p[
                 (edge_from, op_machine_map[edge_from])
             ]
+            self._dag._graph[edge_from][edge_to]["weight"] = instance.p[
+                (edge_from, op_machine_map[edge_from])
+            ]
 
-    def create_disjunctives(self, *, tech_seq_disjunctives: bool = False):
+    def create_disjunctives(self, *, same_job_disjunctives: bool = False):
         instance = self._instance
         machines_assignment = self._machines_assignment
 
@@ -237,7 +243,7 @@ class FJSSPGraph:
             edges = list(combinations(ops, 2))
             for _from, _to in edges:
                 if _from != _to:
-                    if not tech_seq_disjunctives:
+                    if not same_job_disjunctives:
                         job_from = instance.job_of_op[_from]
                         job_to = instance.job_of_op[_to]
                         if job_from != job_to:
@@ -248,6 +254,48 @@ class FJSSPGraph:
                         self._dag._add_disjunctive_edge(
                             machine=machine, from_node=_from, to_node=_to
                         )
+
+    def consolidate_machine_disjunctive(self, *, machine_assignment: list[int]) -> None:
+        instance = self._instance
+
+        for idx, op in enumerate(machine_assignment[:-1]):
+            _from = op
+            _to = machine_assignment[idx + 1]
+            job_from = instance.job_of_op[_from]
+            job_to = instance.job_of_op[_to]
+            if job_from != job_to:
+                machine = -1
+                for idx, ops in enumerate(self._machines_assignment):
+                    if _from in ops:
+                        machine = idx
+                self._dag._add_dependency(
+                    from_node=_from,
+                    to_node=_to,
+                    weight=instance.p[
+                        (
+                            _from,
+                            machine,
+                        )
+                    ],
+                )
+
+    def _longest_to(self, *, op: int) -> float:
+        pred_nodes = nx.ancestors(self._dag._graph, op) | {op}
+        subG = self._dag._graph.subgraph(pred_nodes)
+        lengths = nx.dag_longest_path_length(
+            subG,
+            weight="weight",
+        )
+        return lengths
+
+    def _longest_from(self, *, op: int) -> float:
+        succ_nodes = nx.descendants(self._dag._graph, op) | {op}
+        subG = self._dag._graph.subgraph(succ_nodes)
+        lengths = nx.dag_longest_path_length(
+            subG,
+            weight="weight",
+        )
+        return lengths
 
     def draw_dag(
         self,

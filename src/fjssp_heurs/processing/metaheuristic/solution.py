@@ -2,9 +2,11 @@ from ...instance.instance import Instance
 from ...utils.logger import LOGGER
 from ...utils.plotting import plot_gantt
 from ...utils.gap import evaluate_gap
+from ...utils.graph import FJSSPGraph
 
 from pathlib import Path
 import numpy as np
+import networkx as nx
 
 
 class Solution:
@@ -79,7 +81,34 @@ class Solution:
 
         return list(map(lambda x: int(x), critical_path))
 
-    def print(self, *, show_gantt: bool = True, gantt_name: str) -> None:
+    def _get_machines_assignment(self):
+        instance = self._instance
+
+        machines_assignment = [set() for _ in instance.M]
+        for op in instance.O:
+            machine = self._assign_vect[op]
+            machines_assignment[int(machine)].add(op)
+
+        return machines_assignment
+
+    def _recalculate_times(self) -> None:
+        instance = self._instance
+        self._start_times = []
+        self._finish_times = []
+
+        for op in instance.O:
+            start_time = self._graph._longest_to(op=op)
+            machine = int(self._assign_vect[op])
+            processing_time = instance.p[(op, machine)]
+
+            self._start_times.append(start_time)
+            self._finish_times.append(start_time + processing_time)
+
+        self._makespan = max(self._finish_times)
+
+    def print(
+        self, *, show_gantt: bool = True, gantt_name: str, by_op: bool = True
+    ) -> None:
         logger = self._logger
         logger.log("printing solution")
 
@@ -95,10 +124,16 @@ class Solution:
             logger.log(
                 f"makespan: {makespan} | gap: {evaluate_gap(ub=makespan, lb=self._instance.optimal_solution)}%"
             )
-            for op in instance.O:
-                logger.log(
-                    f"operation: {op} | machine assigned: {self._assign_vect[op]} | start time: {self._start_times[op]} | end time: {self._start_times[op] + instance.p[(op, self._assign_vect[op])]}"
-                )
+            if by_op:
+                for op in instance.O:
+                    logger.log(
+                        f"operation: {op} | machine assigned: {self._assign_vect[op]} | start time: {self._start_times[op]} | end time: {self._start_times[op] + instance.p[(op, self._assign_vect[op])]}"
+                    )
+            else:
+                for m, ops in enumerate(self._machine_sequence):
+                    logger.log(
+                        f"machine: {m} | {ops} | start_times: {[self._start_times[op] for op in ops]} | finish_times: {[self._start_times[op] + instance.p[(op, m)] for op in ops]}"
+                    )
 
         gantt_path = (
             self._output_path

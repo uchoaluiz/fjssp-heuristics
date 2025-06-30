@@ -36,7 +36,7 @@ class SolutionBuilder:
                 logger.log("[1] machines assignment done")
 
                 with logger:
-                    machines_assignment = solution._machine_sequence
+                    machines_assignment = solution._get_machines_assignment()
                     for machine, ops_in_m in enumerate(machines_assignment):
                         logger.log(
                             f"operations assigned to machine {machine}: {set(ops_in_m)}"
@@ -45,6 +45,9 @@ class SolutionBuilder:
                 self.schedule(solution=solution)
 
                 logger.log("[2] scheduling done")
+                with logger:
+                    for machine, ops in enumerate(solution._machine_sequence):
+                        logger.log(f"machine {machine}: {ops}")
 
         logger.log("initial solution built")
 

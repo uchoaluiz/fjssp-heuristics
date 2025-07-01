@@ -202,6 +202,7 @@ class SingleMachineScheduling:
 class ShiftingBottleneck:
     def __init__(self, *, solution: Solution, logger: LOGGER):
         self._logger = logger
+        self._logger.switch_on_off()
 
         self._solution = solution
         self._instance = self._solution._instance
@@ -218,6 +219,7 @@ class ShiftingBottleneck:
 
         with logger:
             self.execute()
+        self._logger.switch_on_off()
 
     def execute(self) -> None:
         logger = self._logger

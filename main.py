@@ -13,7 +13,7 @@ def parse_arguments():
         "--instance",
         type=str,
         default="",
-        help="The complete file path to the instance file(s)",
+        help="the complete file path to the instance file(s)",
     )
 
     parser.add_argument(
@@ -23,6 +23,11 @@ def parse_arguments():
         default="",
         help="available methods: 1. 'cbc': to solve with CBC solver | 2. 'SA': to solve with simulated annealing | 3. 'both': to solve with both methods",
     )
+
+    parser.add_argument(
+        "-t", "--timelimit", type=int, default=300, help="time limit to stop methods"
+    )
+
     args = parser.parse_args()
     return args
 
@@ -41,7 +46,8 @@ def main(*, args: Namespace):
     with logger:
         logger.log(f"input path: {instance_path}")
         logger.log(f"output path: {output_data_path}")
-        logger.log(f"method(s) to optimize FJSSP: {args.method}\n")
+        logger.log(f"method(s) to optimize FJSSP: {args.method}")
+        logger.log(f"time limit: {args.timelimit}\n")
 
     logger.log("starting program")
     with logger:
@@ -49,9 +55,10 @@ def main(*, args: Namespace):
             instance_path=instance_path,
             output_folder_path=output_data_path,
             method=args.method,
-            logger=logger
+            logger=logger,
+            time_limit=args.timelimit,
         ):
-            logger.log(message)
+            logger.log(f"[ok] {message}")
 
 
 if __name__ == "__main__":

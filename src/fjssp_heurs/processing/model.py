@@ -3,22 +3,21 @@ from ..utils.crono import Crono
 from ..utils.logger import LOGGER
 from ..utils.plotting import plot_gantt
 from ..utils.gap import evaluate_gap
+from ..utils.graph import FJSSPGraph
 
 from mip import Model, xsum, minimize, CBC, OptimizationStatus, BINARY, CONTINUOUS
 from pathlib import Path
 
 
 class MathModel:
-    def __init__(
-        self, *, instance: Instance, output_path: Path, logger: LOGGER
-    ) -> None:
+    def __init__(self, *, instance: Instance, logger: LOGGER) -> None:
         self._instance = instance
         self._elapsed_time = 0.0
-        self._output_path = output_path
         self._logger = logger
 
         self._makespan = 0.0
         self._assign_vect = list()
+        self._machine_scheduling = list()
         self._start_times = list()
 
         self._create_model()
@@ -168,20 +167,40 @@ class MathModel:
 
         self._start_times = [self.x.get((op), 0).x for op in self._instance.O]
 
-        self._machine_assignment = list()
         for machine in self._instance.M:
             ops_in_m = list()
             for op, m in enumerate(self._assign_vect):
                 if machine == m:
                     ops_in_m.append(op)
             ops_in_m = sorted(ops_in_m, key=lambda i: self._start_times[i])
-            self._machine_assignment.append(ops_in_m)
+            self._machine_scheduling.append(ops_in_m)
 
         logger.log(
             f"optimization finished | elapsed time: {self._elapsed_time} s | makespan: {self._makespan}"
         )
 
-    def print(self, *, show_gantt: bool = True) -> None:
+    def create_dag(self) -> None:
+        self._graph = FJSSPGraph(
+            instance=self._instance, machines_assignment=self._machine_scheduling
+        )
+
+    def write_dag(
+        self,
+        dag_output_path: Path,
+        title: str,
+        show_no_disjunctives: bool = False,
+        arrowstyle: str = "->",
+    ) -> None:
+        self._graph.draw_dag(
+            output_path=dag_output_path,
+            title=title,
+            show_no_disjunctives=show_no_disjunctives,
+            arrowstyle=arrowstyle,
+        )
+
+    def print(
+        self, *, gantts_output_path: Path, show_gantt: bool = True, by_op: bool = True
+    ) -> None:
         logger = self._logger
 
         with logger:
@@ -196,6 +215,7 @@ class MathModel:
 
                 start_times = dict()
                 machines_assignments = dict()
+                machines_scheduling = dict()
 
                 with logger:
                     logger.log(f"makespan: {makespan}")
@@ -211,13 +231,32 @@ class MathModel:
                         start_times[i] = start
                         machines_assignments[i] = machine
 
-                        logger.log(
-                            f"operation: {i} | machine assigned: {machine} | start time: {start} | end time: {start + self._instance.p[(i, machine)]}"
+                        if by_op:
+                            logger.log(
+                                f"operation: {i} | machine assigned: {machine} | start time: {start} | end time: {start + self._instance.p[(i, machine)]}"
+                            )
+
+                    machines_scheduling = {
+                        m: sorted(
+                            [
+                                op
+                                for op in self._instance.O
+                                if machines_assignments[op] == m
+                            ],
+                            key=lambda op: start_times[op],
                         )
+                        for m in self._instance.M
+                    }
+
+                    if not by_op:
+                        for m, seq in machines_scheduling.items():
+                            logger.log(
+                                f"machine: {m} | sequence: {seq} | start times: {[start_times[op] for op in seq]} | finish times: {[start_times[op] + self._instance.p[(op, m)] for op in seq]}"
+                            )
 
                 gantt_path = (
-                    self._output_path
-                    / f"{self._instance._instance_name} - gantt - solver solution.png"
+                    gantts_output_path
+                    / f"{self._instance._instance_name} - solver solution.png"
                 )
                 logger.log(
                     f"saving optimized solution's gantt graph into path: '{gantt_path}'"
@@ -235,4 +274,3 @@ class MathModel:
                 )
             else:
                 logger.log("no feasible integer solution found in time limit :c")
-        logger.breakline()

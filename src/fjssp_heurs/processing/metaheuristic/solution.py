@@ -6,7 +6,6 @@ from ...utils.graph import FJSSPGraph
 
 from pathlib import Path
 import numpy as np
-import networkx as nx
 
 
 class Solution:
@@ -36,6 +35,27 @@ class Solution:
         self._start_times = list()
         self._finish_times = list()
         logger.log("solution structure built")
+
+    def create_dag(self):
+        self._graph = FJSSPGraph(
+            instance=self._instance,
+            machines_assignment=self._get_machines_assignment(),
+            tech_disjunctives=False,
+        )
+
+    def write_dag(
+        self,
+        dag_output_path: Path,
+        title: str,
+        show_no_disjunctives: bool = False,
+        arrowstyle: str = "->",
+    ) -> None:
+        self._graph.draw_dag(
+            output_path=dag_output_path,
+            title=title,
+            show_no_disjunctives=show_no_disjunctives,
+            arrowstyle=arrowstyle,
+        )
 
     def _find_a_critical_path(self) -> list[int]:
         instance = self._instance
@@ -147,7 +167,7 @@ class Solution:
             processing_times=instance.p,
             job_of_op=instance.job_of_op,
             machine_set=instance.M,
-            title=f"{self._instance._instance_name} - Gantt - {gantt_name}",
+            title=f"{self._instance._instance_name} - {gantt_name}",
             verbose=show_gantt,
             output_file_path=gantt_path,
         )

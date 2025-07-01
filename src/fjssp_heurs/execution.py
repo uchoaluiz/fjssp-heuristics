@@ -138,11 +138,13 @@ def run(
             yield "rescheduled machines by shifting bottleneck\n"
 
             yield "printing post SBP solution (schedule + gantt)"
-            sol.print(show_gantt=False, gantt_name="post SBP solution", by_op=False)
+            shift_bottle_sol.print(
+                show_gantt=False, gantt_name="post SBP solution", by_op=False
+            )
             yield "printed post SBP solution (schedule + gantt)\n"
 
             yield "writing post SBP solution's DAG"
-            sol.write_dag(
+            shift_bottle_sol.write_dag(
                 dag_output_path=inst_dags_path,
                 title=f"{inst._instance_name} - heur bottleneck",
                 show_no_disjunctives=True,

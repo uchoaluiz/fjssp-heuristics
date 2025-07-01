@@ -33,7 +33,7 @@ def parse_arguments():
 
 
 def main(*, args: Namespace):
-    logger = LOGGER()
+    logger = LOGGER(log_path="log.log")
     data_path = Path("files")
     output_data_path = data_path.joinpath("output")
 

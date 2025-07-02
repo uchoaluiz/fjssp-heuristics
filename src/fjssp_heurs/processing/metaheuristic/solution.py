@@ -20,6 +20,9 @@ class Solution:
         self._machine_sequence = sol._machine_sequence
         self._makespan = sol._makespan
 
+        if hasattr(sol, "_graph"):
+            self._graph = sol._graph
+
         self._start_times = sol._start_times
         self._finish_times = sol._finish_times
 
@@ -39,7 +42,7 @@ class Solution:
     def create_dag(self):
         self._graph = FJSSPGraph(
             instance=self._instance,
-            machines_assignment=self._get_machines_assignment(),
+            machines_assignment=self._machine_sequence,
             tech_disjunctives=False,
         )
 
@@ -104,14 +107,14 @@ class Solution:
     def _get_machines_assignment(self):
         instance = self._instance
 
-        machines_assignment = [set() for _ in instance.M]
+        machines_assignment = [list() for _ in instance.M]
         for op in instance.O:
             machine = self._assign_vect[op]
-            machines_assignment[int(machine)].add(op)
+            machines_assignment[int(machine)].append(op)
 
         return machines_assignment
 
-    def _recalculate_times(self) -> None:
+    def _recalculate_times(self) -> float:
         instance = self._instance
         self._start_times = []
         self._finish_times = []
@@ -125,9 +128,15 @@ class Solution:
             self._finish_times.append(start_time + processing_time)
 
         self._makespan = max(self._finish_times)
+        return self._makespan
 
     def print(
-        self, *, show_gantt: bool = True, gantt_name: str, by_op: bool = True
+        self,
+        *,
+        show_gantt: bool = True,
+        gantt_name: str,
+        by_op: bool = True,
+        plot: bool = True,
     ) -> None:
         logger = self._logger
         logger.log("printing solution")
@@ -155,19 +164,20 @@ class Solution:
                         f"machine: {m} | {ops} | start_times: {[self._start_times[op] for op in ops]} | finish_times: {[self._start_times[op] + instance.p[(op, m)] for op in ops]}"
                     )
 
-        gantt_path = (
-            self._output_path
-            / f"{self._instance._instance_name} - gantt - {gantt_name}.png"
-        )
-        logger.log(f"saving solution's gantt graph into path: '{gantt_path}'")
+        if plot:
+            gantt_path = (
+                self._output_path
+                / f"{self._instance._instance_name} - {gantt_name}.png"
+            )
+            logger.log(f"saving solution's gantt graph into path: '{gantt_path}'")
 
-        plot_gantt(
-            start_times={i: self._start_times[i] for i in instance.O},
-            machine_assignments={i: int(self._assign_vect[i]) for i in instance.O},
-            processing_times=instance.p,
-            job_of_op=instance.job_of_op,
-            machine_set=instance.M,
-            title=f"{self._instance._instance_name} - {gantt_name}",
-            verbose=show_gantt,
-            output_file_path=gantt_path,
-        )
+            plot_gantt(
+                start_times={i: self._start_times[i] for i in instance.O},
+                machine_assignments={i: int(self._assign_vect[i]) for i in instance.O},
+                processing_times=instance.p,
+                job_of_op=instance.job_of_op,
+                machine_set=instance.M,
+                title=f"{self._instance._instance_name} - {gantt_name}",
+                verbose=show_gantt,
+                output_file_path=gantt_path,
+            )

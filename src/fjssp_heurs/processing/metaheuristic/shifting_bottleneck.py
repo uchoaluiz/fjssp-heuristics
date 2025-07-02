@@ -28,6 +28,7 @@ class SingleMachineScheduling:
 
     def schrage_algorithm(self) -> None:
         instance = self._instance
+        logger = self._logger
 
         operations = self._operations
         release_dates = self._release_dates
@@ -37,6 +38,16 @@ class SingleMachineScheduling:
         t = min(release_dates[op] for op in operations)
         cmax = 0
 
+        for job, tech_seq in self._instance.S_j.items():
+            for i in range(1, len(tech_seq)):
+                pred = tech_seq[i - 1]
+                curr = tech_seq[i]
+                if pred in operations and curr in operations:
+                    release_dates[curr] = max(
+                        release_dates[curr],
+                        release_dates[pred] + processing_times[pred],
+                    )
+
         remaining_ops = set(operations)
         ready_ops = set()
 
@@ -44,42 +55,63 @@ class SingleMachineScheduling:
         finish_times = dict()
         sequence = []
 
-        self._logger.log(f"Starting Schrage algorithm with ops: {operations}")
+        self._logger.log(f"starting schrage algorithm with ops: {operations}")
         with self._logger:
             self._logger.log(
                 f"releases: {release_dates} | proccss: {processing_times} | deliveries: {delivery_times}"
             )
 
-        while remaining_ops or ready_ops:
-            for op in list(remaining_ops):
-                if release_dates[op] <= t:
-                    job = instance.job_of_op[op]
-                    tech_seq = instance.S_j[job]
-                    job_ops = [o for o in operations if o in tech_seq]
-                    pred_ops = [
-                        o for o in job_ops if tech_seq.index(o) < tech_seq.index(op)
-                    ]
+        self._logger.breakline()
 
-                    if all(pred_op in sequence for pred_op in pred_ops):
-                        ready_ops.add(op)
-                        remaining_ops.remove(op)
-                        self._logger.log(f"Operation {op} became ready at time {t}")
+        with logger:
+            logger.log("scheduling all ops in this machine")
+            while remaining_ops or ready_ops:
+                logger.log(f"current machine time 't' = {t}")
+                with logger:
+                    for op in list(remaining_ops):
+                        if release_dates[op] <= t:
+                            job = instance.job_of_op[op]
+                            tech_seq = instance.S_j[job]
+                            job_ops = [o for o in operations if o in tech_seq]
+                            pred_ops = [
+                                o
+                                for o in job_ops
+                                if tech_seq.index(o) < tech_seq.index(op)
+                            ]
 
-            if ready_ops:
-                op = max(ready_ops, key=lambda o: delivery_times[o])
-                ready_ops.remove(op)
+                            if all(pred_op in sequence for pred_op in pred_ops):
+                                ready_ops.add(op)
+                                remaining_ops.remove(op)
+                                logger.log(
+                                    f"operation {op} became ready at time {t} (its release date {release_dates[op]} < {t} and its predecence are in sequence)"
+                                )
+                            else:
+                                logger.log(
+                                    f"operation {op} can't become ready because not of all their pred are scheduled"
+                                )
 
-                start_times[op] = t
-                sequence.append(op)
+                logger.breakline()
 
-                t += processing_times[op]
-                finish_times[op] = t
-                cmax = max(cmax, t + delivery_times[op])
-                self._logger.log(
-                    f"Scheduled op {op} at t={start_times[op]} -> {finish_times[op]}, cmax={cmax}"
-                )
-            else:
-                t = min(release_dates[op] for op in remaining_ops)
+                if ready_ops:
+                    logger.log(
+                        f"ready ops on time {t} : {ready_ops} | choosing that one with greater delivery times"
+                    )
+                    with logger:
+                        op = max(ready_ops, key=lambda o: delivery_times[o])
+                        ready_ops.remove(op)
+
+                        start_times[op] = t
+                        sequence.append(op)
+
+                        t += processing_times[op]
+                        finish_times[op] = t
+                        cmax = max(cmax, t + delivery_times[op])
+                        self._logger.log(
+                            f"selected op {op} scheduled at t={start_times[op]} -> {finish_times[op]}, cmax={cmax}"
+                        )
+                else:
+                    logger.log(f"no ready ops in time {t}, jump for the next earlier")
+                    t = min(release_dates[op] for op in remaining_ops)
 
         return cmax, start_times, finish_times, sequence
 
@@ -111,7 +143,11 @@ class SingleMachineScheduling:
 
         return critical_path
 
-    def carlier_algorithm(self) -> None:
+    def carlier_algorithm(self, max_depth=30) -> None:
+        logger = self._logger
+        self.best_cmax = float("inf")
+        self.best_schedule = []
+
         def _check_optimal(makespan: float, critical_block: list) -> bool:
             r_min = min(self._release_dates[o] for o in critical_block)
             q_min = min(self._delivery_times[o] for o in critical_block)
@@ -122,13 +158,19 @@ class SingleMachineScheduling:
             )
             return optimal
 
-        def _branch() -> tuple[float, list[int]]:
-            L, start_times, finish_times, sequence = self.schrage_algorithm()
+        def _branch(depth=0) -> tuple[float, list[int]]:
+            if depth > max_depth:
+                logger.log("max recursion depth reached")
+                return self.best_cmax, self.best_schedule
+
+            logger.log(f"branching at depth {depth} | single-machine by schrage:")
+            with logger:
+                L, start_times, finish_times, sequence = self.schrage_algorithm()
 
             if L < self.best_cmax:
                 self.best_cmax = L
                 self.best_schedule = sequence
-                self._logger.log(f"Updated best cmax={L}, sequence={sequence}")
+                self._logger.log(f"updated best cmax={L}, sequence={sequence}")
 
             critical_path = self._get_critical_path(
                 makespan=L,
@@ -157,20 +199,24 @@ class SingleMachineScheduling:
             index_k = critical_path.index(k)
             index_i2 = critical_path.index(i2)
             J = critical_path[index_k + 1 : index_i2 + 1]
-            self._logger.log(f"Branching on op {k} with block J={J}")
+            self._logger.log(f"branching on op {k} with block J={J}")
 
             new_q = copy.deepcopy(self._delivery_times)
+            q_p = self._delivery_times[J[-1]]
             new_q[k] = max(
-                new_q[k],
-                sum(self._processing_times[j] for j in J)
-                + min(self._delivery_times[j] for j in J),
+                self._delivery_times[k],
+                sum(self._processing_times[j] for j in J) + q_p,
             )
 
-            old_q = self._delivery_times
-            self._delivery_times = new_q
-            self._logger.log(f"Branch 1: Increasing q[{k}] -> {new_q[k]}")
-            f1, _ = _branch()
-            self._delivery_times = old_q
+            if new_q[k] > self._delivery_times[k]:
+                old_q = self._delivery_times
+                self._delivery_times = new_q
+                self._logger.log(f"Branch 1: Increasing q[{k}] -> {new_q[k]}")
+                f1, _ = _branch(depth + 1)
+                self._delivery_times = old_q
+            else:
+                self._logger.log(f"Branch 1 skipped: no increase in q[{k}]")
+                f1 = float("inf")
 
             new_r = copy.deepcopy(self._release_dates)
             new_r[k] = max(
@@ -179,18 +225,18 @@ class SingleMachineScheduling:
                 + sum(self._processing_times[j] for j in J),
             )
 
-            old_r = self._release_dates
-            self._release_dates = new_r
-            self._logger.log(f"Branch 2: Increasing r[{k}] -> {new_r[k]}")
-            f2, _ = _branch()
-            self._release_dates = old_r
+            if new_r[k] > self._release_dates[k]:
+                old_r = self._release_dates
+                self._release_dates = new_r
+                self._logger.log(f"Branch 2: Increasing r[{k}] -> {new_r[k]}")
+                f2, _ = _branch(depth + 1)
+                self._release_dates = old_r
+            else:
+                self._logger.log(f"Branch 2 skipped: no increase in r[{k}]")
+                f2 = float("inf")
 
             return min(f1, f2), sequence
 
-        self.best_cmax = float("inf")
-        self.best_schedule = []
-
-        self._logger.log("Starting Carlier algorithm")
         final_cmax, final_sequence = _branch()
         self._logger.log(
             f"Finished Carlier: best_cmax={final_cmax}, best_sequence={final_sequence}"
@@ -202,46 +248,60 @@ class SingleMachineScheduling:
 class ShiftingBottleneck:
     def __init__(self, *, solution: Solution, logger: LOGGER):
         self._logger = logger
-        self._logger.switch_on_off()
+        self._logger.on = -1
 
         self._solution = solution
         self._instance = self._solution._instance
 
-        logger.log("creating shifting bottleneck")
+        logger.log("starting shifting bottleneck algorithm")
 
-        self._solution._graph = FJSSPGraph(
-            instance=self._instance,
-            machines_assignment=self._solution._get_machines_assignment(),
-            tech_disjunctives=True,
-        )
-
+        logger.log("creating JSP instange DAG")
+        self._solution.create_dag()
         self._logger.log("created JSP instance DAG")
 
+        self._logger.breakline()
+
         with logger:
+            logger.log("starting algorithm")
+
             self.execute()
-        self._logger.switch_on_off()
+        self._logger.on = 1
 
     def execute(self) -> None:
         logger = self._logger
         instance = self._solution._instance
 
+        logger.log("starting SBP - scheduling bottleneck machine per time")
+
         remaining_machines = set(
-            [m for m in instance.M if self._solution._machine_sequence[m]]
+            [m for m in instance.M if len(self._solution._machine_sequence[m]) > 0]
         )
 
         logger.log(
-            "starting shifting bottleneck algorithm - scheduling bottleneck machine per time"
+            f"remaining machines to schedule: {remaining_machines} | ops assigned to each: {[self._solution._machine_sequence[m] for m in remaining_machines]}"
         )
+
+        logger.breakline()
 
         with logger:
             while len(remaining_machines) > 0:
-                logger.log(f"{len(remaining_machines)} machines remaining to schedule")
+                logger.log(
+                    f"{len(remaining_machines)} machines remaining to schedule | machines remaining {remaining_machines}"
+                )
+                with logger:
+                    for m in remaining_machines:
+                        logger.log(
+                            f"machine: {m} | sequence: {self._solution._machine_sequence[m]}"
+                        )
+
+                logger.breakline()
 
                 with logger:
                     logger.log("finding bottleneck machine")
-                    bottleneck_machine, machine_seq = self._bottleneck_machine(
-                        machines_subset=remaining_machines
-                    )
+                    with logger:
+                        bottleneck_machine, machine_seq = self._bottleneck_machine(
+                            machines_subset=remaining_machines
+                        )
 
                     logger.log(
                         f"the bottleneck machine is: {bottleneck_machine} | its sequence is: {machine_seq}"
@@ -267,6 +327,10 @@ class ShiftingBottleneck:
         processing_times: dict[int, float],
         delivery_times: dict[int, float],
     ) -> tuple:
+        logger = self._logger
+
+        logger.log("creating a single machine scheduling problem")
+
         subproblem = SingleMachineScheduling(
             operations=operations,
             release_dates=release_dates,
@@ -275,7 +339,14 @@ class ShiftingBottleneck:
             instance=self._instance,
             logger=self._logger,
         )
+
+        logger.log("single machine subproblem created")
+
+        logger.log("starting carlier algorithm")
         L, sequence = subproblem.carlier_algorithm()
+        logger.log(
+            f"finished carlier algorithm | L: {L} | machine_sequence: {sequence}"
+        )
         return L, sequence
 
     def _bottleneck_machine(self, *, machines_subset: set[int]) -> tuple[int, Solution]:
@@ -287,17 +358,26 @@ class ShiftingBottleneck:
         worst_lateness = -float("inf")
         worst_machine_sequence = list()
 
-        sol_machines_assignment = solution._get_machines_assignment()
+        logger.log(
+            f"finding the bottleneck machine | machines to schedule: {machines_subset}"
+        )
+
+        with logger:
+            logger.log("machines assignment:")
+            for m, ops in enumerate(solution._machine_sequence):
+                logger.log(f"machine: {m} | ops: {ops}")
+
+        logger.breakline()
 
         with logger:
             for machine in machines_subset:
                 logger.log(
-                    f"solving single-machine subproblem for machine {machine} | ops assigned: {sol_machines_assignment[machine]}"
+                    f"solving single-machine for machine {machine} | ops assigned: {solution._machine_sequence[machine]}"
                 )
-                if not sol_machines_assignment[machine]:
+                if not solution._machine_sequence[machine]:
                     continue
 
-                operations = sol_machines_assignment[machine]
+                operations = solution._machine_sequence[machine]
                 processing_times = {op: instance.p[(op, machine)] for op in operations}
 
                 release_dates = {
@@ -307,15 +387,28 @@ class ShiftingBottleneck:
                     op: self._solution._graph._longest_from(op=op) for op in operations
                 }
 
-                lateness, machine_sequence = self._solve_single_machine(
-                    operations=operations,
-                    release_dates=release_dates,
-                    processing_times=processing_times,
-                    delivery_times=delivery_times,
+                logger.log(
+                    "calculated new longest_to and longest_from to receive release and delivery dates"
                 )
-                if lateness > worst_lateness:
-                    bottleneck_machine = machine
-                    worst_lateness = lateness
-                    worst_machine_sequence = machine_sequence
+
+                logger.log(
+                    f"solving a single machine subproblem for machine: {machine}"
+                )
+                with logger:
+                    for op in operations:
+                        logger.log(
+                            f"op: {op} | release: {release_dates[op]} | processing: {processing_times[op]} | delivery: {delivery_times[op]}"
+                        )
+
+                    lateness, machine_sequence = self._solve_single_machine(
+                        operations=operations,
+                        release_dates=release_dates,
+                        processing_times=processing_times,
+                        delivery_times=delivery_times,
+                    )
+                    if lateness > worst_lateness:
+                        bottleneck_machine = machine
+                        worst_lateness = lateness
+                        worst_machine_sequence = machine_sequence
 
         return bottleneck_machine, worst_machine_sequence

@@ -22,13 +22,13 @@ def run(
     inst = Instance(instance_path)
     yield f"instance {inst._instance_name} succefully loaded | known optimal = {inst.optimal_solution}\n"
 
-    """
+    # """
     logger.log("printing built instance")
     with logger:
-        inst.print(logger=logger, type="array")
+        # inst.print(logger=logger, type="array")
         # inst.print(logger=logger, type="all")
-        # inst.print(logger=logger, type="sets")
-    """
+        inst.print(logger=logger, type="sets")
+    # """
 
     yield "creating output paths"
 
@@ -76,11 +76,13 @@ def run(
             yield "returned solver solution (schedule + gantt)\n"
 
             yield "creating and writing solver solution's DAG"
+            """
             math_model.create_dag()
             math_model.write_dag(
                 dag_output_path=inst_dags_path,
                 title=f"{inst._instance_name} - solver solution",
             )
+            """
             yield "created and wrote solver solution's DAG"
 
     logger.breakline(2)
@@ -103,7 +105,7 @@ def run(
             builder.build_solution(
                 solution=sol,
                 machines_strategy="grasp",
-                grasp_alpha=0.3,
+                grasp_alpha=0.35,
             )
             yield "built an initial solution with constructive heuristic\n"
 
@@ -117,18 +119,22 @@ def run(
 
             yield "creating built initial solution's DAG"
             sol.create_dag()
+            for m, seq in enumerate(sol._machine_sequence):
+                if seq:
+                    sol._graph.consolidate_machine_disjunctive(machine_assignment=seq)
             yield "created built initial solution's DAG\n"
 
             yield "writing built initial solution's DAG"
             sol.write_dag(
                 dag_output_path=inst_dags_path,
                 title=f"{inst._instance_name} - heur initial solution",
-                show_no_disjunctives=False,
+                show_no_disjunctives=True,
             )
             yield "wrote built initial solution's DAG"
 
             logger.breakline()
 
+            """
             yield "rescheduling machines by shifting bottleneck"
             shift_bottle_sol = Solution(
                 instance=inst, logger=logger, output_path=inst_gantts_path
@@ -150,12 +156,48 @@ def run(
                 show_no_disjunctives=True,
             )
             yield "wrote post SBP solution's DAG\n"
+            """
 
             yield "starting simulated annealing metaheuristic"
             metaheur = Metaheuristics()
             sa_sol = Solution(
-                instance=inst, logger=logger, output_path=output_folder_path
+                instance=inst, logger=logger, output_path=inst_gantts_path
             )
             sa_sol.copy_solution(sol=sol)
-            metaheur.sa(sol=sa_sol, max_time=time_limit)
-            yield "finished simulated annealing metaheuristic"
+            print("initial sa sol")
+            sa_sol.print(
+                show_gantt=False, gantt_name="initial sa sol", by_op=False, plot=True
+            )
+            sa_sol.write_dag(
+                dag_output_path=inst_dags_path,
+                title="initial SA sol",
+                show_no_disjunctives=False,
+                arrowstyle="->",
+            )
+            sa_sol._recalculate_times()
+            sa_sol.print(
+                show_gantt=False,
+                gantt_name="initial sa sol after recalculate",
+                by_op=False,
+                plot=True,
+            )
+            sa_sol.write_dag(
+                dag_output_path=inst_dags_path,
+                title="initial SA sol - after recalculate",
+                show_no_disjunctives=False,
+                arrowstyle="->",
+            )
+            metaheur.sa(sol=sa_sol, max_time=time_limit, logger=logger, verbose=False)
+            yield "finished simulated annealing metaheuristic\n"
+
+            yield "printing SA solution (schedule + gantt)"
+            sa_sol.print(show_gantt=False, gantt_name="SA solution", by_op=False)
+            yield "printed SA solution (schedule + gantt)\n"
+
+            yield "writing SA solution's DAG"
+            sa_sol.write_dag(
+                dag_output_path=inst_dags_path,
+                title=f"{inst._instance_name} - SA solution",
+                show_no_disjunctives=True,
+            )
+            yield "wrote post SA solution's DAG\n"

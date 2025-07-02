@@ -49,7 +49,7 @@ class SolutionBuilder:
                     for machine, ops in enumerate(solution._machine_sequence):
                         logger.log(f"machine {machine}: {ops}")
 
-        logger.log("initial solution built")
+        logger.log(f"initial solution built | makespan: {solution._makespan}")
 
     def select_machines(
         self, solution: Solution, strategy: str = "grasp", grasp_alpha: float = 0.35

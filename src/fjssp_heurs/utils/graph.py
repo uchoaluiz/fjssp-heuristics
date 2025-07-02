@@ -231,8 +231,12 @@ class FJSSPGraph:
                         (edge_from, op_machine_map[edge_from])
                     ]
 
-    def consolidate_machine_disjunctive(self, *, machine_assignment: list[int]) -> None:
+    def consolidate_machine_disjunctive(
+        self, *, machine_assignment: list[int], machine: int = None
+    ) -> None:
         instance = self._instance
+
+        # self._disjunctive_consolidated_edges[machine] = machine_assignment
 
         for idx, op in enumerate(machine_assignment[:-1]):
             _from = op

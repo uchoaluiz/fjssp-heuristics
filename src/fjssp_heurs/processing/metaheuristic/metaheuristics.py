@@ -1,9 +1,11 @@
 from .solution import Solution
 from ...utils.crono import Crono
 from .localsearch import LocalSearch
+from ...utils.logger import LOGGER
 
 from math import exp
 import numpy as np
+from numpy import random
 
 
 class Metaheuristics:
@@ -20,8 +22,18 @@ class Metaheuristics:
         low_temperature: float = 2.0,
         final_temperature: float = 0.01,
         max_time: int,
+        logger: LOGGER,
+        verbose: bool = False,
     ):
-        ls = LocalSearch()
+        self._logger = logger
+        if not verbose:
+            self._logger.on = -1
+        ls = LocalSearch(logger=logger)
+
+        logger.log("sa starting sol")
+        sol.print(
+            show_gantt=False, gantt_name="sa starting sol", by_op=False, plot=False
+        )
 
         def sa_initial_temperature(
             *,
@@ -31,37 +43,35 @@ class Metaheuristics:
             low_temperature: float,
             SAmax: int,
         ):
-            # n = sol.inst.n
             start_temperature = low_temperature
             accept = 0
             min_accept = int(gamma * SAmax)
             while accept < min_accept:
                 h = 0
+
                 while h < SAmax:
                     h += 1
-                    # movement
-                    # j = np.random.randint(n)
-                    # delta = ls.swap_bit(sol, j)
-                    delta = 0
+                    # placeholder — sempre aceita nesse esboço
+                    delta = 1
+
                     if delta > 0:
                         accept += 1
                     else:
                         rnd = np.random.uniform(0, 1)
                         if rnd < exp(delta / start_temperature):
                             accept += 1
-                    # movement
-                    # delta = ls.swap_bit(sol, j)
-                    delta = 0
 
                 if accept < min_accept:
                     accept = 0
                     start_temperature *= beta
+
             return start_temperature
 
-        inst = sol.inst
-        n = inst.n
+        inst = sol._instance
+        num_ops = len(inst.O)
+        SAmax = int(k * num_ops)
+        logger.log(f"max iterations: {SAmax}")
 
-        SAmax = k * n
         initial_temperature = sa_initial_temperature(
             sol=sol,
             beta=beta,
@@ -70,29 +80,70 @@ class Metaheuristics:
             SAmax=SAmax,
         )
         temperature = initial_temperature
-        final_temperature = 0.01
-        n_temp_changes = 0
 
-        best_sol = Solution(inst)
-        best_sol.copy(sol)
+        best_sol = Solution(
+            instance=inst, logger=sol._logger, output_path=sol._output_path
+        )
+        best_sol.copy_solution(sol=sol)
+
+        logger.log("best sol:")
+        best_sol.print(
+            show_gantt=False, gantt_name="sa best sol", by_op=False, plot=False
+        )
 
         timer = Crono()
 
-        while temperature > final_temperature and timer.get_time() < max_time:
+        while temperature > final_temperature and timer.elapsed_time() < max_time:
+            logger.log(
+                f"current temperature: {temperature} | current time: {timer.elapsed_time()}"
+            )
             h = 0
-            while h < SAmax:
+            while h < SAmax and timer.elapsed_time() < max_time:
+                # wait = input()
                 h += 1
-                j = np.random.randint(n)
-                delta = ls.swap_bit(sol, j)
+                logger.log(f"starting h: {h}")
+
+                current_obj = sol._recalculate_times()
+                logger.log(f"current_obj: {current_obj}")
+
+                backup = Solution(
+                    instance=inst, logger=sol._logger, output_path=sol._output_path
+                )
+                backup.copy_solution(sol=sol)
+
+                logger.log("generating neighbor solution")
+
+                """
+                if temperature > initial_temperature * 0.5:
+                    k = random.randint(int(len(inst.O) / 8), int(len(inst.O) / 3))
+                else:
+                    k = random.randint(int(len(inst.O) / 30), int(len(inst.O) / 10))
+                
+                ls.random_k_machine_swap(sol=sol, k=k)
+                """
+                ls.random_machine_swap(sol=sol)
+
+                new_obj = sol._recalculate_times()
+                delta = current_obj - new_obj
+                logger.log(
+                    f"h {h} | current_sol_obj = {current_obj} | new_neighboor_obj = {new_obj} | delta = {delta}"
+                )
+
                 if delta > 0:
-                    if sol.get_obj_val() > best_sol.get_obj_val():
-                        best_sol.copy(sol)
+                    if new_obj < best_sol._makespan:
+                        best_sol.copy_solution(sol=sol)
                 else:
                     rnd = np.random.uniform(0, 1)
                     if rnd < exp(delta / temperature):
                         pass
                     else:
-                        ls.swap_bit(sol, j)
+                        sol.copy_solution(sol=backup)
 
+                logger.breakline()
             temperature *= alpha
-            n_temp_changes += 1
+            logger.breakline(2)
+
+        print(f"TEMPO: {timer.elapsed_time()}")
+
+        sol.copy_solution(sol=best_sol)
+        self._logger.on = 1

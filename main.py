@@ -33,7 +33,7 @@ def parse_arguments():
 
 
 def main(*, args: Namespace):
-    logger = LOGGER(log_path="log.log")
+    logger = LOGGER(log_path="execlog.log")
     data_path = Path("files")
     output_data_path = data_path.joinpath("output")
 
@@ -50,6 +50,8 @@ def main(*, args: Namespace):
         logger.log(f"time limit: {args.timelimit}\n")
 
     logger.log("starting program")
+
+    h = 1
     with logger:
         for message in app.run(
             instance_path=instance_path,
@@ -58,7 +60,8 @@ def main(*, args: Namespace):
             logger=logger,
             time_limit=args.timelimit,
         ):
-            logger.log(f"[ok] {message}")
+            logger.log(f"[{h}] {message}")
+            h += 1
 
 
 if __name__ == "__main__":

@@ -5,7 +5,6 @@ from ...utils.logger import LOGGER
 
 from math import exp
 import numpy as np
-from numpy import random
 
 
 class Metaheuristics:

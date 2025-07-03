@@ -123,7 +123,14 @@ class Instance:
 
             logger.breakline()
 
-            logger.log("P_j: technological sequence to job 'j':")
+            logger.log("S_j: technological sequence to job 'j':")
+            with logger:
+                for job, seqtec in self.S_j.items():
+                    logger.log(f"S_{job}: {seqtec}")
+
+            logger.breakline()
+
+            logger.log("P_j: technological sequence edges to job 'j':")
             with logger:
                 for job, seqtec in enumerate(self.P_j):
                     logger.log(f"job {job}: {self.P_j[job]}")
@@ -149,7 +156,7 @@ class Instance:
                 for oper, job in self.job_of_op.items():
                     logger.log(f"operation {oper} belongs to job {job}")
 
-            logger.breakline(2)
+        logger.breakline(2)
 
     def get_optimal(self) -> int:
         json_path = os.path.join("files/instances", "instances.json")

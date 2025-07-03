@@ -9,10 +9,9 @@ import numpy as np
 
 
 class Solution:
-    def __init__(self, *, instance: Instance, logger: LOGGER, output_path: Path):
+    def __init__(self, *, instance: Instance, logger: LOGGER):
         self._instance = instance
         self._logger = logger
-        self._output_path = output_path
         self._create_structure()
 
     def copy_solution(self, *, sol) -> None:
@@ -29,7 +28,6 @@ class Solution:
     def _create_structure(self) -> None:
         instance = self._instance
         logger = self._logger
-        logger.log("building solution structure")
 
         self._assign_vect = np.full(len(instance.O), np.nan)
         self._machine_sequence = [[] for _ in instance.M]
@@ -37,27 +35,24 @@ class Solution:
 
         self._start_times = list()
         self._finish_times = list()
-        logger.log("solution structure built")
 
-    def create_dag(self):
+    def create_dag(self, *, tech_disjunc: bool = False):
         self._graph = FJSSPGraph(
             instance=self._instance,
             machines_assignment=self._machine_sequence,
-            tech_disjunctives=False,
+            tech_disjunc=tech_disjunc,
         )
+        self._logger.breakline()
 
-    def write_dag(
+    def export_dag(
         self,
         dag_output_path: Path,
         title: str,
-        show_no_disjunctives: bool = False,
         arrowstyle: str = "->",
+        show: str = "disjunctives",
     ) -> None:
-        self._graph.draw_dag(
-            output_path=dag_output_path,
-            title=title,
-            show_no_disjunctives=show_no_disjunctives,
-            arrowstyle=arrowstyle,
+        self._graph.export_visualization(
+            output_path=dag_output_path, title=title, arrowstyle=arrowstyle, show=show
         )
 
     def _find_a_critical_path(self) -> list[int]:
@@ -70,9 +65,7 @@ class Solution:
 
         end_ops = [op for op in instance.O if finish_times.index(makespan) == op]
         if not end_ops:
-            raise ValueError(
-                "Nenhuma operação encontrada com término igual ao makespan."
-            )
+            raise ValueError("no operations with finish time = makespan.")
 
         current_op = np.random.choice(end_ops)
         critical_path = [current_op]
@@ -130,54 +123,64 @@ class Solution:
         self._makespan = max(self._finish_times)
         return self._makespan
 
+    def save_gantt(self, *, gantt_output: Path, gantt_title: str) -> None:
+        logger = self._logger
+
+        with logger:
+            gantt_path = (
+                gantt_output
+                / f"{self._instance._instance_name} - heur - {gantt_title}.png"
+            )
+
+            try:
+                plot_gantt(
+                    start_times=self._start_times,
+                    machine_assignments=self._machine_sequence,
+                    instance=self._instance,
+                    title=f"{self._instance._instance_name} - gantt - {gantt_title}",
+                    verbose=False,
+                    output_file_path=gantt_path,
+                )
+            except Exception as e:
+                logger.log("couldn't plot gantt graph for heur solution")
+                with logger:
+                    logger.log(e)
+
+        logger.breakline()
+
     def print(
         self,
         *,
-        show_gantt: bool = True,
-        gantt_name: str,
-        by_op: bool = True,
-        plot: bool = True,
+        print_style: str = "arrays",
     ) -> None:
         logger = self._logger
-        logger.log("printing solution")
-
-        if np.isnan(self._assign_vect).all():
-            with logger:
-                logger.log("empty solution")
-            return None
-
-        instance = self._instance
-        makespan = self._makespan
 
         with logger:
-            logger.log(
-                f"makespan: {makespan} | gap: {evaluate_gap(ub=makespan, lb=self._instance.optimal_solution)}%"
-            )
-            if by_op:
-                for op in instance.O:
-                    logger.log(
-                        f"operation: {op} | machine assigned: {self._assign_vect[op]} | start time: {self._start_times[op]} | end time: {self._start_times[op] + instance.p[(op, self._assign_vect[op])]}"
-                    )
-            else:
-                for m, ops in enumerate(self._machine_sequence):
-                    logger.log(
-                        f"machine: {m} | {ops} | start_times: {[self._start_times[op] for op in ops]} | finish_times: {[self._start_times[op] + instance.p[(op, m)] for op in ops]}"
-                    )
+            logger.log("printing solution")
 
-        if plot:
-            gantt_path = (
-                self._output_path
-                / f"{self._instance._instance_name} - {gantt_name}.png"
-            )
-            logger.log(f"saving solution's gantt graph into path: '{gantt_path}'")
+            if np.isnan(self._assign_vect).all():
+                with logger:
+                    logger.log("empty solution")
+                return None
 
-            plot_gantt(
-                start_times={i: self._start_times[i] for i in instance.O},
-                machine_assignments={i: int(self._assign_vect[i]) for i in instance.O},
-                processing_times=instance.p,
-                job_of_op=instance.job_of_op,
-                machine_set=instance.M,
-                title=f"{self._instance._instance_name} - {gantt_name}",
-                verbose=show_gantt,
-                output_file_path=gantt_path,
-            )
+            with logger:
+                instance = self._instance
+                makespan = self._makespan
+
+                logger.log(
+                    f"makespan: {makespan} | gap: {evaluate_gap(ub=makespan, lb=self._instance.optimal_solution)}%"
+                )
+
+                if print_style == "each_op":
+                    for op in instance.O:
+                        logger.log(
+                            f"operation: {op} | machine assigned: {self._assign_vect[op]} | start time: {self._start_times[op]} | end time: {self._start_times[op] + instance.p[(op, self._assign_vect[op])]}"
+                        )
+
+                elif print_style == "arrays":
+                    for m, ops in enumerate(self._machine_sequence):
+                        logger.log(
+                            f"machine: {m} | {ops} | start_times: {[self._start_times[op] for op in ops]} | finish_times: {[self._start_times[op] + instance.p[(op, m)] for op in ops]}"
+                        )
+
+        logger.breakline()

@@ -99,7 +99,6 @@ class Metaheuristics:
             )
             h = 0
             while h < SAmax and timer.elapsed_time() < max_time:
-                # wait = input()
                 h += 1
                 logger.log(f"starting h: {h}")
 
@@ -113,14 +112,6 @@ class Metaheuristics:
 
                 logger.log("generating neighbor solution")
 
-                """
-                if temperature > initial_temperature * 0.5:
-                    k = random.randint(int(len(inst.O) / 8), int(len(inst.O) / 3))
-                else:
-                    k = random.randint(int(len(inst.O) / 30), int(len(inst.O) / 10))
-                
-                ls.random_k_machine_swap(sol=sol, k=k)
-                """
                 ls.random_machine_swap(sol=sol)
 
                 new_obj = sol._recalculate_times()

@@ -3,15 +3,14 @@ import matplotlib.patches as mpatches
 import matplotlib.cm as cm
 
 from pathlib import Path
+from ..instance.instance import Instance
 
 
 def plot_gantt(
     *,
     start_times: dict[int, float],
-    machine_assignments: dict[int, int],
-    processing_times: dict[tuple[int, int], float],
-    job_of_op: dict[int, int],
-    machine_set: list[int],
+    machine_assignments: list[list[int]],
+    instance: Instance,
     title: str = "Gantt Chart",
     show_labels: bool = True,
     figsize=(20, 6),
@@ -21,7 +20,11 @@ def plot_gantt(
 ) -> None:
     _, ax = plt.subplots(figsize=figsize)
 
-    jobs = sorted(set(job_of_op.values()))
+    job_of_op = instance.job_of_op
+    machine_set = instance.M
+    processing_times = instance.p
+
+    jobs = list(range(instance.num_jobs))
     job_colors = {job: cm.tab20(job % 20) for job in jobs}
 
     yticks = []
@@ -32,12 +35,12 @@ def plot_gantt(
 
     latest_end = 0
 
-    for m_idx, m in enumerate(sorted(machine_set)):
+    for m_idx, m in enumerate(machine_set):
         y = m_idx * spacing
         yticks.append(y)
         yticklabels.append(f"machine {m}")
 
-        ops_on_m = [i for i, m_i in machine_assignments.items() if m_i == m]
+        ops_on_m = machine_assignments[m_idx]
         for i in ops_on_m:
             s = start_times[i]
             p = processing_times[(i, m)]

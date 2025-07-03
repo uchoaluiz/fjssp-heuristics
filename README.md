@@ -44,6 +44,22 @@ To execute the tool, use the `main.py` script with the following command-line ar
 python main.py -i path/to/instance.txt -m SA -t 60
 ```
 
+### 🔸 Available Arguments
+- _**-i**_ or _**--instance**_:
+Path to the input file containing the FJSSP instance.
+
+- _**-m**_ or _**--method**_:
+Solution method to be used. Available options:
+
+  - **'cbc'**: solves the problem using the CBC solver
+
+  - **'SA'**: applies Simulated Annealing
+
+  - **'both'**: runs both approaches for comparison
+
+- _**-t**_ or _**--timelimit**_:
+Time limit in seconds for solving the problem (default: 300 seconds).
+
 ---
 
 ## 📄 Instance Format  
@@ -56,11 +72,8 @@ Each instance consists of:
 ### 🔹 Example:  
 
 ```plaintext
-5 2  # 5 jobs and 2 machines
+2 3                             # 2 jobs, 3 machines
 
-2 0 1 1 2  # 2 machines can process operation 0, machine 0 with processing time 1, machine 1 with processing time 2
-1 1 2      # 1 machine can process operation 1, machine 1 with processing time 2
-2 0 1 1 2  # 2 machines can process operation 2, machine 0 with processing time 1, machine 1 with processing time 2
-1 0 1      # 1 machine can process operation 3, machine 0 with processing time 1
-2 0 1 1 2  # 2 machines can process operation 4, machine 0 with processing time 1, machine 1 with processing time 2
+2 2 0 1 1 2 1 1 3               # job 0: 2 ops | 1st op: 2 eligible machines (p_m0 = 1, p_m1 = 2) | 2nd op: 1 eligible machine (p_m1 = 3)
+3 2 0 2 2 1 1 1 2 2 1 3 2 4     # job 1: 3 ops | 1st op: 2 eligible machines (p_m0 = 2, p_m2 = 1) | 2nd op: 1 eligible machine (p_m1 = 2) | 3rd op: 2 eligible machines (p_m1 = 3, p_m2 = 4)
 ```

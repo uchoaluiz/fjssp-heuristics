@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import datetime
 
 
 class LOGGER:
@@ -15,10 +16,14 @@ class LOGGER:
         self._log_file = None
 
         try:
-            self._log_file = open(self._log_path, "w", encoding="utf-8")
+            self._log_file = open(self._log_path, "a", encoding="utf-8")
+
+            self._log_file.write("\n" * 5)
+            self._log_file.write(f"{datetime.datetime.now()}\n")
+            self._log_file.write("\n" * 5)
         except IOError as e:
             print(
-                f"Erro ao abrir o arquivo de log '{self._log_path}': {e}",
+                f"error opening log file: '{self._log_path}': {e}",
                 file=sys.stderr,
             )
             self.on = -1
@@ -33,7 +38,7 @@ class LOGGER:
                 self._log_file.write(msg + "\n")
                 self._log_file.flush()
             except IOError as e:
-                print(f"Erro ao escrever no arquivo de log: {e}", file=sys.stderr)
+                print(f"error on writing log on file: {e}", file=sys.stderr)
                 self.on = -1
 
     def breakline(self, n: int = 1):

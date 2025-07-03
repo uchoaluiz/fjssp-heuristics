@@ -11,15 +11,23 @@ class SolutionBuilder:
     def _define_grasp_alpha(self, *, alpha: float = 0.35) -> None:
         self._grasp_alpha = alpha
 
+    def define_hiperparams(self, *, alpha_grasp: float = 0.35) -> None:
+        logger = self._logger
+
+        self._define_grasp_alpha(alpha=alpha_grasp)
+
+        with logger:
+            logger.log("hiperparameters defined")
+            logger.breakline()
+
     def build_solution(
         self,
         *,
         solution: Solution,
         machines_strategy: str = "grasp",
-        grasp_alpha: float = 0.35,
+        scheduler_approach: str = "machine_by_machine",
     ) -> None:
         logger = self._logger
-        logger.log("building initial solution with constructive heuristic")
 
         if machines_strategy not in ["grasp", "greedy"]:
             machines_strategy = "random"
@@ -31,9 +39,8 @@ class SolutionBuilder:
                 self.select_machines(
                     solution=solution,
                     strategy=machines_strategy,
-                    grasp_alpha=grasp_alpha,
                 )
-                logger.log("[1] machines assignment done")
+                logger.log("[1] machines assignment done\n")
 
                 with logger:
                     machines_assignment = solution._get_machines_assignment()
@@ -41,24 +48,26 @@ class SolutionBuilder:
                         logger.log(
                             f"operations assigned to machine {machine}: {set(ops_in_m)}"
                         )
+                logger.breakline()
 
-                self.schedule(solution=solution)
+                self.schedule(solution=solution, approach=scheduler_approach)
+                logger.log("[2] scheduling done\n")
 
-                logger.log("[2] scheduling done")
                 with logger:
                     for machine, ops in enumerate(solution._machine_sequence):
                         logger.log(f"machine {machine}: {ops}")
 
-        logger.log(f"initial solution built | makespan: {solution._makespan}")
+                logger.breakline()
 
-    def select_machines(
-        self, solution: Solution, strategy: str = "grasp", grasp_alpha: float = 0.35
-    ) -> None:
+            logger.log(f"initial solution built | makespan: {solution._makespan}")
+
+            logger.breakline()
+
+    def select_machines(self, solution: Solution, strategy: str = "grasp") -> None:
         if strategy == "greedy":
             self._select_machines_greedy(solution)
 
         elif strategy == "grasp":
-            self._define_grasp_alpha(alpha=grasp_alpha)
             self._select_machines_grasp(solution)
 
         else:
@@ -98,8 +107,13 @@ class SolutionBuilder:
         for o in instance.O:
             solution._assign_vect[o] = np.random.choice(list(instance.M_i[o]))
 
-    def schedule(self, *, solution: Solution) -> None:
-        self._schedule_machine_by_machine(solution=solution)
+    def schedule(
+        self, *, solution: Solution, approach: str = "machine_by_machine"
+    ) -> None:
+        if approach == "machine_by_machine":
+            self._schedule_machine_by_machine(solution=solution)
+        else:
+            self._logger.log("scheduler approach not implemented :c")
 
     def _schedule_machine_by_machine(self, *, solution: Solution) -> None:
         def _get_op_priority(

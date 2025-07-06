@@ -27,35 +27,34 @@ class Solution:
 
     def _create_structure(self) -> None:
         instance = self._instance
-        logger = self._logger
 
         self._assign_vect = np.full(len(instance.O), np.nan)
         self._machine_sequence = [[] for _ in instance.M]
-        self._makespan = 0.0
+        self._makespan = float("inf")
 
         self._start_times = list()
         self._finish_times = list()
 
-    def create_dag(self, *, tech_disjunc: bool = False):
+    def create_graph(self, *, tech_disjunc: bool = False, graph_type: str):
         self._graph = FJSSPGraph(
             instance=self._instance,
-            machines_assignment=self._machine_sequence,
+            machines_assignment=self._get_machines_assignment(),
             tech_disjunc=tech_disjunc,
+            graph_type=graph_type,
         )
-        self._logger.breakline()
 
     def export_dag(
         self,
         dag_output_path: Path,
         title: str,
         arrowstyle: str = "->",
-        show: str = "disjunctives",
+        show: str = "visual disjunctives",
     ) -> None:
         self._graph.export_visualization(
             output_path=dag_output_path, title=title, arrowstyle=arrowstyle, show=show
         )
 
-    def _find_a_critical_path(self) -> list[int]:
+    def _find_a_critical_path(self) -> tuple[list[int], int]:
         instance = self._instance
         start_times = self._start_times
         finish_times = self._finish_times
@@ -63,9 +62,14 @@ class Solution:
         machine_sequence = self._machine_sequence
         makespan = self._makespan
 
+        multiple_critical_paths = 0
+
         end_ops = [op for op in instance.O if finish_times.index(makespan) == op]
         if not end_ops:
             raise ValueError("no operations with finish time = makespan.")
+
+        if len(end_ops) > 1:
+            multiple_critical_paths = 1
 
         current_op = np.random.choice(end_ops)
         critical_path = [current_op]
@@ -92,10 +96,13 @@ class Solution:
             if not pred_ops:
                 break
 
+            if len(pred_ops) > 1:
+                multiple_critical_paths = 1
+
             current_op = np.random.choice(pred_ops)
             critical_path.insert(0, current_op)
 
-        return list(map(lambda x: int(x), critical_path))
+        return list(map(lambda x: int(x), critical_path)), multiple_critical_paths
 
     def _get_machines_assignment(self):
         instance = self._instance
@@ -107,13 +114,43 @@ class Solution:
 
         return machines_assignment
 
-    def _recalculate_times(self) -> float:
+    def reset_to_jssp(self) -> None:
+        self._machine_sequence = self._get_machines_assignment()
+        self._start_times = []
+        self._finish_times = []
+        self._makespan = float("inf")
+        if hasattr(self, "_graph"):
+            self._graph = FJSSPGraph(
+                instance=self._instance,
+                machines_assignment=self._machine_sequence,
+                tech_disjunc=True,
+                graph_type="partial fjssp",
+            )
+
+    def _recalculate_times(self, logger: LOGGER) -> float:
+        if not all(
+            self._graph._are_sequence_consolidated(machine_id=m)
+            for m, seq in enumerate(self._machine_sequence)
+            if seq
+        ):
+            with logger:
+                logger.log(
+                    "not all disjunctives edges of the machines sequence are consolidated"
+                )
+
+                """
+                print("consolidating it")
+                for m, ops in enumerate(self._machine_sequence):
+                    self._graph.consolidate_sequence_on_machine(machine_id=m, sequence=ops)
+                """
+                logger.log("ignoring it")
+
         instance = self._instance
         self._start_times = []
         self._finish_times = []
 
         for op in instance.O:
-            start_time = self._graph._longest_to(op=op)
+            start_time = self._graph.longest_path_to(op=op)
             machine = int(self._assign_vect[op])
             processing_time = instance.p[(op, machine)]
 
@@ -146,8 +183,6 @@ class Solution:
                 with logger:
                     logger.log(e)
 
-        logger.breakline()
-
     def print(
         self,
         *,
@@ -155,32 +190,38 @@ class Solution:
     ) -> None:
         logger = self._logger
 
-        with logger:
-            logger.log("printing solution")
-
-            if np.isnan(self._assign_vect).all():
-                with logger:
-                    logger.log("empty solution")
-                return None
-
+        if (
+            np.isnan(self._assign_vect).all()
+            or not self._start_times
+            or not self._finish_times
+        ):
             with logger:
-                instance = self._instance
-                makespan = self._makespan
+                logger.log("empty solution")
+            return None
 
-                logger.log(
-                    f"makespan: {makespan} | gap: {evaluate_gap(ub=makespan, lb=self._instance.optimal_solution)}%"
-                )
+        with logger:
+            instance = self._instance
+            makespan = self._makespan
 
-                if print_style == "each_op":
-                    for op in instance.O:
-                        logger.log(
-                            f"operation: {op} | machine assigned: {self._assign_vect[op]} | start time: {self._start_times[op]} | end time: {self._start_times[op] + instance.p[(op, self._assign_vect[op])]}"
-                        )
+            logger.log(
+                f"makespan: {makespan} | "
+                f"gap: {evaluate_gap(ub=makespan, lb=self._instance.optimal_solution)}%"
+            )
 
-                elif print_style == "arrays":
-                    for m, ops in enumerate(self._machine_sequence):
-                        logger.log(
-                            f"machine: {m} | {ops} | start_times: {[self._start_times[op] for op in ops]} | finish_times: {[self._start_times[op] + instance.p[(op, m)] for op in ops]}"
-                        )
+            if print_style == "each_op":
+                for op in instance.O:
+                    logger.log(
+                        f"op: {op} | "
+                        f"machine: {self._assign_vect[op]} | "
+                        f"start: {self._start_times[op]} | "
+                        f"end: {self._start_times[op] + instance.p[(op, self._assign_vect[op])]}"
+                    )
 
-        logger.breakline()
+            elif print_style == "arrays":
+                for m, ops in enumerate(self._machine_sequence):
+                    logger.log(
+                        f"m: {m} | "
+                        f"seq: {ops} | "
+                        f"starts: {[self._start_times[op] for op in ops]} | "
+                        f"ends: {[(self._start_times[op] + instance.p[(op, m)]) for op in ops]}"
+                    )

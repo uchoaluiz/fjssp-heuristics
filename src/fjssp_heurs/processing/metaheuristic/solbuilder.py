@@ -1,4 +1,5 @@
 import numpy as np
+from copy import copy
 
 from .solution import Solution
 from ...utils.logger import LOGGER
@@ -6,7 +7,8 @@ from ...utils.logger import LOGGER
 
 class SolutionBuilder:
     def __init__(self, logger: LOGGER) -> None:
-        self._logger = logger
+        self._logger = copy(logger)
+        self._logger.level += 1
 
     def _define_grasp_alpha(self, *, alpha: float = 0.35) -> None:
         self._grasp_alpha = alpha
@@ -14,11 +16,14 @@ class SolutionBuilder:
     def define_hiperparams(self, *, alpha_grasp: float = 0.35) -> None:
         logger = self._logger
 
+        if alpha_grasp > 1:
+            alpha_grasp = 1
+        if alpha_grasp <= 0:
+            alpha_grasp = 0.35
+
         self._define_grasp_alpha(alpha=alpha_grasp)
 
-        with logger:
-            logger.log("hiperparameters defined")
-            logger.breakline()
+        logger.log("hiperparameters defined")
 
     def build_solution(
         self,
@@ -32,36 +37,35 @@ class SolutionBuilder:
         if machines_strategy not in ["grasp", "greedy"]:
             machines_strategy = "random"
 
+        logger.log(f"machines assignment strategy: {machines_strategy}")
+
         with logger:
-            logger.log(f"machines assignment strategy: {machines_strategy}")
+            self.select_machines(
+                solution=solution,
+                strategy=machines_strategy,
+            )
+            logger.log("[1] assignment done")
+            logger.breakline()
 
             with logger:
-                self.select_machines(
-                    solution=solution,
-                    strategy=machines_strategy,
-                )
-                logger.log("[1] machines assignment done\n")
-
-                with logger:
-                    machines_assignment = solution._get_machines_assignment()
-                    for machine, ops_in_m in enumerate(machines_assignment):
-                        logger.log(
-                            f"operations assigned to machine {machine}: {set(ops_in_m)}"
-                        )
-                logger.breakline()
-
-                self.schedule(solution=solution, approach=scheduler_approach)
-                logger.log("[2] scheduling done\n")
-
-                with logger:
-                    for machine, ops in enumerate(solution._machine_sequence):
-                        logger.log(f"machine {machine}: {ops}")
-
-                logger.breakline()
-
-            logger.log(f"initial solution built | makespan: {solution._makespan}")
+                machines_assignment = solution._get_machines_assignment()
+                for machine, ops_in_m in enumerate(machines_assignment):
+                    logger.log(f"machine {machine} assignment: {set(ops_in_m)}")
 
             logger.breakline()
+
+            self.schedule(solution=solution, approach=scheduler_approach)
+
+            logger.log("[2] scheduling done")
+            logger.breakline()
+
+            with logger:
+                for machine, ops in enumerate(solution._machine_sequence):
+                    logger.log(f"machine {machine} scheduling: {ops}")
+
+            logger.breakline()
+
+        logger.log(f"initial solution built | makespan: {solution._makespan}")
 
     def select_machines(self, solution: Solution, strategy: str = "grasp") -> None:
         if strategy == "greedy":

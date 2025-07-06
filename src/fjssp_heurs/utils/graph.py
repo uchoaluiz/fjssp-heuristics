@@ -14,20 +14,11 @@ class DAG:
     def __init__(self, instance: Instance):
         self._instance = instance
         self._graph = nx.DiGraph()
+
         self._positions = dict()
-        self._disjunctive_visuals = dict()
-        self._edge_weights = dict()
+        self._disjunctive_edges = dict()
 
         self._build_base_graph()
-
-    @property
-    def graph(self):
-        return self._graph
-
-    def set_edge_weight(self, from_node: int, to_node: int, weight: float):
-        self._edge_weights[(from_node, to_node)] = weight
-        if self._graph.has_edge(from_node, to_node):
-            self._graph[from_node][to_node]["weight"] = weight
 
     def _build_base_graph(self):
         instance = self._instance
@@ -35,7 +26,7 @@ class DAG:
         # adds nodes
         for job, ops in instance.S_j.items():
             for i, op in enumerate(ops):
-                self._add_operation(op=op, pos_x=i, pos_y=job)
+                self._add_operation(op=op, pos_x=i * 2, pos_y=job * 4)
 
         # adds edges
         for job in instance.P_j:
@@ -45,13 +36,18 @@ class DAG:
         # adds nodes & edges for artificial nodes 'S' and 'T'
         self._add_artificial_nodes()
 
+    def set_edge_weight(self, from_node: int, to_node: int, weight: float):
+        if self._graph.has_edge(from_node, to_node):
+            self._graph[from_node][to_node]["weight"] = weight
+        else:
+            print(f"edge ({from_node}, {to_node}) not in graph.edges")
+
     def _add_operation(self, *, op: int, pos_x: float, pos_y: float):
         self._graph.add_node(op)
         self._positions[op] = (pos_x, -pos_y)
 
-    def _add_dependency(self, *, from_node: int, to_node: int, weight="?"):
+    def _add_dependency(self, *, from_node: int, to_node: int, weight=0):
         self._graph.add_edge(from_node, to_node, weight=weight)
-        self._edge_weights[(from_node, to_node)] = weight
 
     def _add_artificial_nodes(self):
         instance = self._instance
@@ -70,22 +66,32 @@ class DAG:
             self._add_dependency(from_node="S", to_node=ops[0])
             self._add_dependency(from_node=ops[-1], to_node="V")
 
-    def add_visual_disjunctive_edge(self, machine: int, from_node: int, to_node: int):
-        self._disjunctive_visuals.setdefault(machine, []).append((from_node, to_node))
+    def add_disjunctive_edge(
+        self,
+        machine: int,
+        from_node: int,
+        to_node: int,
+        weight: int = 0,
+        consolidated: bool = True,
+    ):
+        if consolidated:
+            self._graph.add_edge(from_node, to_node, weight=weight)
+        self._disjunctive_edges.setdefault(machine, []).append((from_node, to_node))
 
     def draw(
         self,
         *,
         output_path: Path,
         title: str,
-        show_disjunct: bool = False,
+        show_visual_disjunct: bool = False,
+        show_real_disjunct: bool = False,
         arrowstyle: str = "->",
         time_limit: float = 10.0,
     ):
         timer = Crono()
 
         try:
-            plt.figure(figsize=(12, 6))
+            plt.figure(figsize=(16, 10))
 
             nx.draw_networkx_nodes(
                 self._graph, pos=self._positions, node_color="lightblue", node_size=300
@@ -97,9 +103,31 @@ class DAG:
             if timer.elapsed_time() > time_limit:
                 raise TimeoutError("time exceeded in creating nodes (operations)")
 
+            if not show_real_disjunct:
+                added_disjunctive_edges = [
+                    edge
+                    for edges_in_machine in self._disjunctive_edges.values()
+                    for edge in edges_in_machine
+                ]
+                all_tech_edges = [
+                    edge for job_edges in self._instance.P_j for edge in job_edges
+                ]
+
+                unwanted_edges = [
+                    edge
+                    for edge in added_disjunctive_edges
+                    if edge not in all_tech_edges
+                ]
+                showing_edges = [
+                    e for e in self._graph.edges if e not in unwanted_edges
+                ]
+            else:
+                showing_edges = self._graph.edges
+
             nx.draw_networkx_edges(
                 self._graph,
                 pos=self._positions,
+                edgelist=showing_edges,
                 edge_color="black",
                 arrows=True,
                 arrowsize=10,
@@ -109,8 +137,7 @@ class DAG:
                 raise TimeoutError("time exceeded in creating the edges")
 
             edge_labels = {
-                (u, v): f"{self._edge_weights.get((u, v), '')}"
-                for u, v in self._graph.edges()
+                (u, v): self._graph[u][v]["weight"] for u, v in showing_edges
             }
             nx.draw_networkx_edge_labels(
                 self._graph,
@@ -123,9 +150,9 @@ class DAG:
             if timer.elapsed_time() > time_limit:
                 raise TimeoutError("time exceeded in evaluating the edges")
 
-            if show_disjunct:
+            if show_visual_disjunct:
                 color_map = cm.get_cmap("tab10")
-                machines = list(self._disjunctive_visuals.keys())
+                machines = list(self._disjunctive_edges.keys())
                 n_colors = len(machines)
 
                 for i, machine in enumerate(machines):
@@ -135,8 +162,8 @@ class DAG:
                         )
 
                     color = color_map(i / max(n_colors - 1, 1))
-                    arcs = self._disjunctive_visuals[machine]
-                    rad = 0.2 + (i % 3) * 0.2
+                    arcs = self._disjunctive_edges[machine]
+                    rad = 0.2 + (i % 3) * 0.1
                     mult = 1
 
                     for edge in arcs:
@@ -149,7 +176,7 @@ class DAG:
                             style="dashed",
                             arrows=True,
                             arrowstyle=arrowstyle,
-                            arrowsize=20,
+                            arrowsize=15,
                             width=2,
                             connectionstyle=f"arc3,rad={edge_rad}",
                         )
@@ -186,15 +213,21 @@ class DAG:
                     fontsize=9,
                 )
 
-            suffix = "with" if show_disjunct else "without"
-            plt.title(f"{title} - {suffix} disjunctives")
+            suffix: str
+            if show_real_disjunct:
+                suffix = "real disjunctives"
+            elif show_visual_disjunct:
+                suffix = "visual disjunctives"
+            else:
+                suffix = "only conjuntives"
+            plt.title(f"{title} - {suffix}")
             plt.axis("off")
             plt.tight_layout()
 
             if timer.elapsed_time() > time_limit:
                 raise TimeoutError("time exceeded in final layout")
 
-            plt.savefig(output_path / f"{title} - {suffix} disjunctive.png")
+            plt.savefig(output_path / f"{title} - {suffix}.png")
             plt.close()
         except TimeoutError as e:
             plt.close()
@@ -213,34 +246,96 @@ class FJSSPGraph:
         self,
         *,
         instance: Instance,
-        machines_assignment: list[list[int]],
+        machines_assignment: list[list[int]] = [],
         tech_disjunc: bool = False,
+        graph_type: str,
     ):
+        if graph_type not in ["fjssp instance", "partial fjssp", "complete fjssp"]:
+            print("the FJSSPGraph type must be specified")
+            return None
+
         self._instance = instance
-        self._machines_assignment = machines_assignment
+
+        if graph_type == "fjssp instance":
+            self._machines_assignment = [
+                set(ops) for ops in self._instance.O_m.values()
+            ]
+            self._machines_scheduling = self._machines_assignment.copy()
+
+        elif graph_type == "partial fjssp":
+            self._machines_assignment = [
+                set(assignment) for assignment in machines_assignment
+            ]
+            self._machines_scheduling = self._machines_assignment.copy()
+
+        elif graph_type == "complete fjssp":
+            self._machines_assignment = [
+                set(assignment) for assignment in machines_assignment
+            ]
+            self._machines_scheduling = machines_assignment
+
         self._dag = DAG(instance)
 
-        self._create_visual_disjunctives(tech_disjunc=tech_disjunc)
-        self._set_edge_weights()
+        if graph_type in ["partial fjssp", "complete fjssp"]:
+            ops_machine = {
+                op: m
+                for op in self._instance.O
+                for m, ops in enumerate(self._machines_assignment)
+                if op in ops
+            }
+            for u, v in self._dag._graph.edges:
+                if u != "S":
+                    self._dag.set_edge_weight(
+                        from_node=u,
+                        to_node=v,
+                        weight=self._instance.p[(u, ops_machine[u])],
+                    )
 
-    def _create_visual_disjunctives(self, *, tech_disjunc: bool = False):
-        for machine, ops in enumerate(self._machines_assignment):
-            for op1, op2 in combinations(ops, 2):
-                if tech_disjunc or (
-                    self._instance.job_of_op[op1] != self._instance.job_of_op[op2]
-                ):
-                    self._dag.add_visual_disjunctive_edge(machine, op1, op2)
+        self._create_disjunctives(tech_disjunc=tech_disjunc, graph_type=graph_type)
 
+    def _create_disjunctives(self, *, tech_disjunc: bool = True, graph_type: str):
+        if graph_type == "complete fjssp":
+            for machine, sequence in enumerate(self._machines_scheduling):
+                for i in range(len(sequence) - 1):
+                    from_op = sequence[i]
+                    to_op = sequence[i + 1]
+                    if tech_disjunc or (
+                        self._instance.job_of_op[from_op]
+                        != self._instance.job_of_op[to_op]
+                    ):
+                        self._dag.add_disjunctive_edge(
+                            machine,
+                            from_op,
+                            to_op,
+                            weight=self._instance.p[(from_op, machine)],
+                            consolidated=True,
+                        )
+
+        if graph_type in ["fjssp instance", "partial fjssp"]:
+            for machine, ops in enumerate(self._machines_assignment):
+                for op1, op2 in combinations(ops, 2):
+                    if tech_disjunc or (
+                        self._instance.job_of_op[op1] != self._instance.job_of_op[op2]
+                    ):
+                        self._dag.add_disjunctive_edge(
+                            machine,
+                            op1,
+                            op2,
+                            consolidated=False,
+                        )
+
+    """
     def _set_edge_weights(self):
         def _are_operations_assigned() -> bool:
+            # verifying if each operation is assigned to one single machine
             all_ops = [
                 op for machine_seq in self._machines_assignment for op in machine_seq
             ]
             return len(all_ops) == len(set(all_ops))
 
-        if _are_operations_assigned():
-            instance = self._instance
-            for u, v in self._dag.graph.edges():
+        instance = self._instance
+        for u, v in self._dag._graph.edges:
+            if _are_operations_assigned():
                 if u not in ["S", "V"] and v not in ["S"]:
                     machine = next(
                         (
@@ -253,76 +348,103 @@ class FJSSPGraph:
                     if machine is not None:
                         weight = instance.p[(u, machine)]
                         self._dag.set_edge_weight(u, v, weight)
-                if u == "S":
-                    self._dag.set_edge_weight(u, v, 0)
-        else:
             if u == "S":
                 self._dag.set_edge_weight(u, v, 0)
+    """
 
-    def add_disjunctive_dependency(
-        self, from_node: int, to_node: int, machine: int, weight: float
-    ):
-        weight = self._instance.p[(from_node, machine)]
-        self._dag.graph.add_edge(from_node, to_node, weight=weight)
-        self._dag.set_edge_weight(from_node, to_node, weight)
+    def _are_sequence_consolidated(self, machine_id: int) -> bool:
+        if not self._machines_scheduling[machine_id]:
+            return False
+
+        scheduling = self._machines_scheduling[machine_id]
+
+        for i in range(len(scheduling) - 1):
+            from_op = list(scheduling)[i]
+            to_op = list(scheduling)[i + 1]
+            if (from_op, to_op) not in self._dag._graph.edges:
+                return False
+
+        return True
 
     def consolidate_sequence_on_machine(self, machine_id: int, sequence: list[int]):
+        self._machines_scheduling[machine_id] = sequence
+        self._machines_assignment[machine_id] = set(sequence)
+
         for i in range(len(sequence) - 1):
             from_op = sequence[i]
             to_op = sequence[i + 1]
             if self._instance.job_of_op[from_op] != self._instance.job_of_op[to_op]:
-                self.add_disjunctive_dependency(
-                    from_op,
-                    to_op,
-                    machine_id,
+                self._dag.add_disjunctive_edge(
+                    machine=machine_id,
+                    from_node=from_op,
+                    to_node=to_op,
                     weight=self._instance.p[(from_op, machine_id)],
+                    consolidated=True,
                 )
 
+    def remove_sequence_on_machine(self, *, machine_id: int) -> None:
+        if self._machines_scheduling[machine_id]:
+            sequence = self._machines_scheduling[machine_id]
+            for i in range(len(sequence) - 1):
+                from_op = list(sequence)[i]
+                to_op = list(sequence)[i + 1]
+                if self._instance.job_of_op[from_op] != self._instance.job_of_op[to_op]:
+                    self._dag._graph.remove_edge(
+                        from_op,
+                        to_op,
+                    )
+        self._machines_scheduling[machine_id] = list()
+
     def longest_path_to(self, op: int) -> float:
-        subgraph = self._dag.graph.subgraph(nx.ancestors(self._dag.graph, op) | {op})
+        subgraph = self._dag._graph.subgraph(nx.ancestors(self._dag._graph, op) | {op})
         return nx.dag_longest_path_length(subgraph, weight="weight")
 
     def longest_path_from(self, op: int) -> float:
-        subgraph = self._dag.graph.subgraph(nx.descendants(self._dag.graph, op) | {op})
-        return nx.dag_longest_path_length(subgraph, weight="weight")
-
-    def draw_dag(
-        self,
-        output_path: Path,
-        title: str,
-        show_disjunct: bool = True,
-        arrowstyle: str = "->",
-        time_limit: float = 10.0,
-    ):
-        self._dag.draw(
-            output_path=output_path,
-            title=title,
-            show_disjunct=show_disjunct,
-            arrowstyle=arrowstyle,
-            time_limit=time_limit,
+        subgraph = self._dag._graph.subgraph(
+            nx.descendants(self._dag._graph, op) | {op}
         )
+        return nx.dag_longest_path_length(subgraph, weight="weight")
 
     def export_visualization(
         self,
         output_path: Path,
         title: str,
         arrowstyle: str = "->",
-        show: str = "disjunctives",
+        show: str = "visual disjunctives",
         time_limit: float = 10.0,
     ):
-        if show in ["connectives", "both"]:
-            self.draw_dag(
-                output_path,
-                title,
-                show_disjunct=False,
+        if show not in [
+            "visual disjunctives",
+            "both",
+            "no disjunctives",
+            "real disjunctives",
+        ]:
+            show = "visual disjunctives"
+
+        if show in ["no disjunctives", "both"]:
+            self._dag.draw(
+                output_path=output_path,
+                title=title,
+                show_visual_disjunct=False,
+                show_real_disjunct=False,
                 arrowstyle=arrowstyle,
                 time_limit=time_limit,
             )
-        if show in ["disjunctives", "both"]:
-            self.draw_dag(
-                output_path,
-                title,
-                show_disjunct=True,
+        if show in ["visual disjunctives", "both"]:
+            self._dag.draw(
+                output_path=output_path,
+                title=title,
+                show_visual_disjunct=True,
+                show_real_disjunct=False,
+                arrowstyle=arrowstyle,
+                time_limit=time_limit,
+            )
+        if show in ["real disjunctives"]:
+            self._dag.draw(
+                output_path=output_path,
+                title=title,
+                show_visual_disjunct=False,
+                show_real_disjunct=True,
                 arrowstyle=arrowstyle,
                 time_limit=time_limit,
             )

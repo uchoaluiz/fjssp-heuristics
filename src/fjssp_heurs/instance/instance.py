@@ -169,3 +169,59 @@ class Instance:
                 return instance.get("optimum")
 
         return None
+
+    def write(self, *, instance_path: Path) -> None:
+        file_path = instance_path / f"instance - {self._instance_name}.inst"
+        inst_file = open(
+            file_path,
+            "w",
+            encoding="utf-8",
+        )
+
+        inst_file.write(f"#jobs: {self.num_jobs} | #machines: {self.num_machines}\n")
+
+        inst_file.write("O: set of global operations:\n")
+        inst_file.write(f"{self.O}\n")
+
+        inst_file.write("M: set of machines:\n")
+
+        inst_file.write(f"{self.M}\n")
+
+        inst_file.write("J: set of jobs:\n")
+
+        inst_file.write(f"{set(range(self.num_jobs))}\n")
+
+        inst_file.write("M_i: allowed machines for operation 'i':\n")
+
+        for oper, maqs in self.M_i.items():
+            inst_file.write(f"M_{oper}: {maqs}\n")
+
+        inst_file.write("O_j: operations in job 'j':\n")
+
+        for job, opers_job in enumerate(self.O_j):
+            inst_file.write(f"O_{job}: {opers_job}\n")
+
+        inst_file.write("S_j: technological sequence to job 'j':\n")
+
+        for job, seqtec in self.S_j.items():
+            inst_file.write(f"S_{job}: {seqtec}\n")
+
+        inst_file.write("P_j: technological sequence edges to job 'j':\n")
+
+        for job, seqtec in enumerate(self.P_j):
+            inst_file.write(f"job {job}: {self.P_j[job]}\n")
+
+        inst_file.write("O_m: operations that can be processed by machine 'm':\n")
+
+        for maq, opers in self.O_m.items():
+            inst_file.write(f"O_{maq}: {opers}\n")
+
+        inst_file.write("p_{i,m}: processing time of operation 'i' in machine 'm':\n")
+
+        for (oper, maq), process in self.p.items():
+            inst_file.write(f"p_({oper}, {maq}): {process}\n")
+
+        inst_file.write("j(o): job to which operation 'o' belongs:\n")
+
+        for oper, job in self.job_of_op.items():
+            inst_file.write(f"operation {oper} belongs to job {job}\n")

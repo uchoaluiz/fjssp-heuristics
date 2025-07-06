@@ -21,11 +21,30 @@ def parse_arguments():
         "--method",
         type=str,
         default="",
-        help="available methods: 1. 'cbc': to solve with CBC solver | 2. 'SA': to solve with simulated annealing | 3. 'both': to solve with both methods",
+        choices=["cbc", "SA", "both"],
+        help="method(s) to optimize the problem",
     )
 
     parser.add_argument(
-        "-t", "--timelimit", type=int, default=300, help="time limit to stop methods"
+        "-t", "--timelimit", type=float, default=300, help="time limit to stop methods"
+    )
+
+    parser.add_argument(
+        "-salog",
+        "--salogwriting",
+        type=str,
+        default="N",
+        choices=["Y", "N"],
+        help="whether SA processing logs should be written to a file",
+    )
+
+    parser.add_argument(
+        "-sbplog",
+        "--sbplogwriting",
+        type=str,
+        default="N",
+        choices=["Y", "N"],
+        help="whether SBP processing logs should be written to a file.",
     )
 
     args = parser.parse_args()
@@ -33,7 +52,7 @@ def parse_arguments():
 
 
 def main(*, args: Namespace):
-    logger = LOGGER(log_path="execlog.log")
+    logger = LOGGER(log_path="execlog.log", out="both")
     data_path = Path("files")
     output_data_path = data_path.joinpath("output")
 
@@ -59,9 +78,13 @@ def main(*, args: Namespace):
             method=args.method,
             logger=logger,
             time_limit=args.timelimit,
+            sa_log_writing=True if args.salogwriting == "Y" else False,
+            sbp_log_writing=True if args.sbplogwriting == "Y" else False,
         ):
             logger.log(f"[{h}] {message}")
             h += 1
+
+    logger.log("finishing program")
 
 
 if __name__ == "__main__":

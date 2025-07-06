@@ -142,6 +142,7 @@ class MathModel:
         time_limit: int = 1800,
     ) -> tuple:
         logger = self._logger
+        feasible: bool
 
         self.model.verbose = verbose if verbose in [0, 1] else 0
 
@@ -178,13 +179,16 @@ class MathModel:
             if self._status == OptimizationStatus.FEASIBLE:
                 logger.log(f"feasible integer solution found | gap = {gap}%")
             if self._status == OptimizationStatus.OPTIMAL:
-                logger.log(f"optimal solution found | gap = {gap}%")
+                logger.log("optimal solution found | gap = 0%")
+
+            feasible = True
         else:
             logger.log("no feasible integer solution found in time limit :c")
+            feasible = False
 
         logger.breakline()
 
-        return self._makespan, self._elapsed_time
+        return feasible, self._makespan, self._elapsed_time, gap
 
     def _machine_of_op(self, *, op: int) -> int:
         for machine, ops in self._machine_scheduling:
@@ -194,35 +198,38 @@ class MathModel:
     def print(self, *, print_style: str = "array") -> None:
         logger = self._logger
 
-        with logger:
-            if self.model.num_solutions:
-                makespan = self.c_max.x
+        if self.model.num_solutions:
+            makespan = self.c_max.x
 
-                with logger:
-                    logger.log(f"makespan: {makespan}")
+            with logger:
+                logger.log(f"makespan: {makespan}")
 
-                    if print_style == "each_op":
-                        for i in self._instance.O:
-                            start = self.x[i].x
-                            machine = [
-                                m
-                                for m in self._instance.M_i[i]
-                                if self.z.get((i, m), 0).x >= 0.99
-                            ][0]
+                if print_style == "each_op":
+                    for i in self._instance.O:
+                        start = self.x[i].x
+                        machine = [
+                            m
+                            for m in self._instance.M_i[i]
+                            if self.z.get((i, m), 0).x >= 0.99
+                        ][0]
 
-                            logger.log(
-                                f"operation: {i} | machine assigned: {machine} | start time: {start} | end time: {start + self._instance.p[(i, machine)]}"
-                            )
+                        logger.log(
+                            f"operation: {i} | "
+                            f"machine assigned: {machine} | "
+                            f"start time: {start} | "
+                            f"end time: {start + self._instance.p[(i, machine)]}"
+                        )
 
-                    if print_style == "arrays":
-                        for m, seq in enumerate(self._machine_scheduling):
-                            logger.log(
-                                f"machine: {m} | sequence: {seq} | start times: {[self._start_times[op] for op in seq]} | finish times: {[self._start_times[op] + self._instance.p[(op, m)] for op in seq]}"
-                            )
-            else:
-                logger.log("no feasible integer solution found in time limit :c")
-
-            logger.breakline()
+                if print_style == "arrays":
+                    for m, seq in enumerate(self._machine_scheduling):
+                        logger.log(
+                            f"m: {m} | "
+                            f"seq: {seq} | "
+                            f"starts: {[self._start_times[op] if not self._start_times[op].is_integer() else int(self._start_times[op]) for op in seq]} | "
+                            f"ends: {[self._start_times[op] + self._instance.p[(op, m)] if not (self._start_times[op] + self._instance.p[(op, m)]).is_integer() else int(self._start_times[op] + self._instance.p[(op, m)]) for op in seq]}"
+                        )
+        else:
+            logger.log("no feasible integer solution found in time limit :c")
 
     def save_gantt(self, gantt_output_path: Path) -> None:
         logger = self._logger
@@ -247,13 +254,12 @@ class MathModel:
                 with logger:
                     logger.log(e)
 
-        logger.breakline()
-
-    def create_dag(self, *, tech_disjunc: bool = False) -> None:
+    def create_graph(self, *, tech_disjunc: bool = False) -> None:
         self._graph = FJSSPGraph(
             instance=self._instance,
             machines_assignment=self._machine_scheduling,
             tech_disjunc=tech_disjunc,
+            graph_type="complete fjssp",
         )
 
     def export_dag(
@@ -261,7 +267,7 @@ class MathModel:
         dag_output_path: Path,
         title: str,
         arrowstyle: str = "->",
-        show: str = "disjunctives",
+        show: str = "real disjunctives",
     ) -> None:
         self._graph.export_visualization(
             output_path=dag_output_path, title=title, arrowstyle=arrowstyle, show=show

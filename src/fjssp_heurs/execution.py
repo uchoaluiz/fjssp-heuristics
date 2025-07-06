@@ -1,13 +1,16 @@
 from pathlib import Path
+import pandas as pd
 
 from .processing.metaheuristic.solution import Solution
 from .processing.metaheuristic.solbuilder import SolutionBuilder
 from .instance.instance import Instance
 from .processing.model import MathModel
 from .utils.logger import LOGGER
-from .processing.metaheuristic.metaheuristics import Metaheuristics
-from .processing.metaheuristic.shifting_bottleneck import ShiftingBottleneck
+from .processing.metaheuristic.sa import SimulatedAnnealing
 from .utils.graph import FJSSPGraph
+from .processing.metaheuristic.sbp.sbp import ShiftingBottleneck
+from .processing.metaheuristic.localsearch import LocalSearch
+from .utils.gap import evaluate_gap
 
 
 def run(
@@ -17,187 +20,164 @@ def run(
     method: str,
     time_limit: int,
     logger: LOGGER,
+    sa_log_writing: bool,
+    sbp_log_writing: bool,
 ):
-    yield "loading instance"
     inst = Instance(instance_path)
-    yield f"instance {inst._instance_name} succefully loaded | known optimal = {inst.optimal_solution}\n"
+    results_df = pd.DataFrame()
 
-    # """
-    logger.log("printing built instance")
-    with logger:
-        # inst.print(logger=logger, type="array")
-        # inst.print(logger=logger, type="all")
-        inst.print(logger=logger, type="sets")
-    # """
-
-    yield "creating output paths"
+    yield f"instance {inst._instance_name} succefully loaded | known optimal = {inst.optimal_solution}"
 
     instance_output_path = output_folder_path / inst._instance_name
     instance_output_path.mkdir(exist_ok=True)
 
-    inst_gantts_path = instance_output_path / "Gants"
+    inst_gantts_path = instance_output_path / "Gantts"
     inst_gantts_path.mkdir(exist_ok=True)
 
     inst_dags_path = instance_output_path / "DAGs"
     inst_dags_path.mkdir(exist_ok=True)
 
-    yield "created output paths\n"
+    yield "created output paths"
 
-    yield f"creating the {inst._instance_name} FJSSP instance DAG"
-    inst_machines_assingment = [ops for ops in inst.O_m.values()]
+    inst.write(instance_path=instance_output_path)
     instance_graph = FJSSPGraph(
-        instance=inst,
-        machines_assignment=inst_machines_assingment,
-        tech_disjunctives=False,
+        instance=inst, tech_disjunc=True, graph_type="fjssp instance"
     )
-    instance_graph.draw_dag(
+    instance_graph.export_visualization(
         output_path=inst_dags_path,
         title=f"{inst._instance_name} - instance",
-        show_no_disjunctives=True,
         arrowstyle="-",
+        show="both",
     )
-    yield f"created and printed the {inst._instance_name} FJSSP instance DAG\n"
+    yield f"created and saved '{inst._instance_name}' instance's DAGs and parameters read, check {instance_output_path}"
 
     if method == "cbc" or method == "both":
-        yield "solving FJSSP with CBC solver\n"
+        logger.breakline()
+        yield "solving FJSSP with CBC solver"
+
         with logger:
             yield "creating FJSSP mathematical model"
             math_model = MathModel(instance=inst, logger=logger)
-            yield "created FJSSP mathematical model\n"
 
-            yield f"optimizing mathematical model | time limit = {time_limit}"
-            math_model.optimize(verbose=0, time_limit=time_limit)
-            yield "optimized mathematical model\n"
+            yield f"optimizing mathematical model | time limit = {time_limit} s"
+            with logger:
+                solver_feasible, solver_makespan, solver_time, solver_gap = (
+                    math_model.optimize(verbose=0, time_limit=time_limit)
+                )
 
-            yield "returning solver solution (schedule + gantt)"
-            math_model.print(
-                gantts_output_path=inst_gantts_path, show_gantt=False, by_op=False
-            )
-            yield "returned solver solution (schedule + gantt)\n"
+            if solver_feasible:
+                yield "printing solver solution"
+                math_model.print(print_style="arrays")
 
-            yield "creating and writing solver solution's DAG"
-            """
-            math_model.create_dag()
-            math_model.write_dag(
-                dag_output_path=inst_dags_path,
-                title=f"{inst._instance_name} - solver solution",
-            )
-            """
-            yield "created and wrote solver solution's DAG"
+                logger.breakline()
 
-    logger.breakline(2)
+                yield "saving solver solution' gantt graph"
+                math_model.save_gantt(gantt_output_path=inst_gantts_path)
+
+                yield "creating and writing solver solution's DAG"
+                math_model.create_graph(tech_disjunc=True)
+                math_model.export_dag(
+                    dag_output_path=inst_dags_path,
+                    title=f"{inst._instance_name} - solver solution",
+                    show="real disjunctives",
+                )
+
+                results_df["solver makespan"] = [solver_makespan]
+                results_df["solver time"] = [solver_time]
+                results_df["solver gap"] = [solver_gap]
+
+            else:
+                yield "solver optimization didn't reach a feasible solution"
 
     if method == "SA" or method == "both":
-        yield "solving FJSSP with simulated annealing\n"
+        logger.breakline()
+        yield "solving FJSSP with heuristic approach"
+
         with logger:
-            yield "building a solution representation"
-            sol = Solution(instance=inst, logger=logger, output_path=inst_gantts_path)
-            yield "built a solution representation\n"
+            sol = Solution(instance=inst, logger=logger)
+            yield "built a solution representation"
 
-            yield "printing initial solution and its gantt graph"
-            sol.print(
-                show_gantt=False, gantt_name="initial solution - blank", by_op=False
-            )
-            yield "printed initial solution and its gantt graph\n"
-
-            yield "building an initial solution with constructive heuristic"
+            yield "building a feasible initial solution with constructive heuristic"
             builder = SolutionBuilder(logger=logger)
+            builder.define_hiperparams(alpha_grasp=0.35)
+
             builder.build_solution(
                 solution=sol,
                 machines_strategy="grasp",
-                grasp_alpha=0.35,
+                scheduler_approach="machine_by_machine",
             )
-            yield "built an initial solution with constructive heuristic\n"
 
-            yield "printing built initial solution and its gantt graph"
-            sol.print(
-                show_gantt=False,
-                gantt_name="initial solution - constructive heur",
-                by_op=False,
-            )
-            yield "printed built initial solution and its gantt graph\n"
-
-            yield "creating built initial solution's DAG"
-            sol.create_dag()
-            for m, seq in enumerate(sol._machine_sequence):
-                if seq:
-                    sol._graph.consolidate_machine_disjunctive(machine_assignment=seq)
-            yield "created built initial solution's DAG\n"
-
-            yield "writing built initial solution's DAG"
-            sol.write_dag(
-                dag_output_path=inst_dags_path,
-                title=f"{inst._instance_name} - heur initial solution",
-                show_no_disjunctives=True,
-            )
-            yield "wrote built initial solution's DAG"
+            results_df["constr.heur makespan"] = [sol._makespan]
+            results_df["constr.heur gap"] = [
+                evaluate_gap(ub=sol._makespan, lb=inst.optimal_solution)
+            ]
 
             logger.breakline()
 
-            """
-            yield "rescheduling machines by shifting bottleneck"
-            shift_bottle_sol = Solution(
-                instance=inst, logger=logger, output_path=inst_gantts_path
+            yield "printing built initial solution"
+            sol.print(
+                print_style="arrays",
             )
-            shift_bottle_sol.copy_solution(sol=sol)
-            SBP = ShiftingBottleneck(solution=shift_bottle_sol, logger=logger)
-            yield "rescheduled machines by shifting bottleneck\n"
 
-            yield "printing post SBP solution (schedule + gantt)"
-            shift_bottle_sol.print(
-                show_gantt=False, gantt_name="post SBP solution", by_op=False
+            logger.breakline()
+
+            yield "saving built initial solution' gantt graph"
+            sol.save_gantt(
+                gantt_output=inst_gantts_path, gantt_title="constructive heur solution"
             )
-            yield "printed post SBP solution (schedule + gantt)\n"
 
-            yield "writing post SBP solution's DAG"
-            shift_bottle_sol.write_dag(
+            yield "creating and writing initial solution's DAG"
+            sol.create_graph(tech_disjunc=True, graph_type="complete fjssp")
+            sol.export_dag(
                 dag_output_path=inst_dags_path,
-                title=f"{inst._instance_name} - heur bottleneck",
-                show_no_disjunctives=True,
+                title=f"{inst._instance_name} - constructive heuristic initial solution",
+                show="visual disjunctives",
             )
-            yield "wrote post SBP solution's DAG\n"
-            """
 
-            yield "starting simulated annealing metaheuristic"
-            metaheur = Metaheuristics()
-            sa_sol = Solution(
-                instance=inst, logger=logger, output_path=inst_gantts_path
-            )
+            yield "preparing simulated annealing initial solution"
+            sa_sol = Solution(instance=inst, logger=logger)
             sa_sol.copy_solution(sol=sol)
-            print("initial sa sol")
-            sa_sol.print(
-                show_gantt=False, gantt_name="initial sa sol", by_op=False, plot=True
-            )
-            sa_sol.write_dag(
-                dag_output_path=inst_dags_path,
-                title="initial SA sol",
-                show_no_disjunctives=False,
-                arrowstyle="->",
-            )
-            sa_sol._recalculate_times()
-            sa_sol.print(
-                show_gantt=False,
-                gantt_name="initial sa sol after recalculate",
-                by_op=False,
-                plot=True,
-            )
-            sa_sol.write_dag(
-                dag_output_path=inst_dags_path,
-                title="initial SA sol - after recalculate",
-                show_no_disjunctives=False,
-                arrowstyle="->",
-            )
-            metaheur.sa(sol=sa_sol, max_time=time_limit, logger=logger, verbose=False)
-            yield "finished simulated annealing metaheuristic\n"
 
-            yield "printing SA solution (schedule + gantt)"
-            sa_sol.print(show_gantt=False, gantt_name="SA solution", by_op=False)
-            yield "printed SA solution (schedule + gantt)\n"
-
-            yield "writing SA solution's DAG"
-            sa_sol.write_dag(
-                dag_output_path=inst_dags_path,
-                title=f"{inst._instance_name} - SA solution",
-                show_no_disjunctives=True,
+            yield "starting SA optimization"
+            sa = SimulatedAnnealing(
+                local_search=LocalSearch(logger=logger),
+                log_writing=sa_log_writing,
+                max_time=time_limit,
+                sbp_solver=ShiftingBottleneck(
+                    log_out="off" if not sbp_log_writing else "file"
+                ),
             )
-            yield "wrote post SA solution's DAG\n"
+
+            sa_sol, sa_time, sa_gap = sa.optimize(solution=sa_sol)
+
+            results_df["SA makespan"] = [sa_sol._makespan]
+            results_df["SA time"] = [sa_time]
+            results_df["SA gap"] = [sa_gap]
+
+            logger.breakline()
+
+            yield "printing SA solution"
+            sa_sol.print(print_style="arrays")
+
+            logger.breakline()
+
+            yield "saving SA solution' gantt graph"
+            sa_sol.save_gantt(
+                gantt_output=inst_gantts_path, gantt_title="SA best solution"
+            )
+
+            yield "creating and writing SA solution's DAG"
+            sa_sol.create_graph(tech_disjunc=False, graph_type="complete fjssp")
+            sa_sol.export_dag(
+                dag_output_path=inst_dags_path,
+                title=f"{inst._instance_name} - SA best solution",
+                show="visual disjunctives",
+            )
+
+    logger.breakline()
+
+    yield f"saving results in a csv, check {instance_output_path}"
+
+    results_df.to_csv(instance_output_path / "results.csv", index=False)
+
+    logger.breakline()

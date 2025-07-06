@@ -1,26 +1,35 @@
 from ..instance.instance import Instance
 from ..utils.crono import Crono
+from ..utils.logger import LOGGER
+from ..utils.plotting import plot_gantt
+from ..utils.gap import evaluate_gap
+from ..utils.graph import FJSSPGraph
 
 from mip import Model, xsum, minimize, CBC, OptimizationStatus, BINARY, CONTINUOUS
 from pathlib import Path
 
 
 class MathModel:
-    def __init__(self, *, instance: Instance, output_folder: Path) -> None:
+    def __init__(self, *, instance: Instance, logger: LOGGER) -> None:
         self._instance = instance
-        self._output_folder = output_folder
-        self._create_model()
+        self._elapsed_time = 0.0
+        self._logger = logger
 
-    def _create_model(self) -> None:
-        print("   > building mathematical model")
+        self._makespan = 0.0
+        self._assign_vect = list()
+        self._machine_scheduling = list()
+        self._start_times = list()
 
+        h = 1
+        with logger:
+            for status in self._create_model():
+                logger.log(f"[{h}] {status}")
+                h += 1
+
+    def _create_model(self):
         instance = self._instance
-        # instance.print(type="sets")
-
-        steps = 1
 
         self.model = Model("FJSSP", solver_name=CBC)
-
         big_m = 1e5
 
         x = {
@@ -41,13 +50,11 @@ class MathModel:
         }
         c_max = self.model.add_var(name="c_max", var_type=CONTINUOUS, lb=0.0)
 
-        print(f"      > [{steps}] decision vars has been created")
-        steps += 1
+        yield "decision vars created"
 
         self.model.objective = minimize(c_max)
 
-        print(f"      > [{steps}] objective function has been defined")
-        steps += 1
+        yield "objective function defined"
 
         for i in instance.O:
             self.model += (
@@ -57,8 +64,7 @@ class MathModel:
                 f"makespan_def_{i}",
             )
 
-        print(f"      > [{steps}] constraints R1 has been created")
-        steps += 1
+        yield "constraints R1 created"
 
         for j in range(instance.num_jobs):
             seq = instance.P_j[j]
@@ -72,8 +78,7 @@ class MathModel:
                     f"preced_{i}_{i_}",
                 )
 
-        print(f"      > [{steps}] constraints R2 has been created")
-        steps += 1
+        yield "constraints R2 created"
 
         for i in instance.O:
             self.model += (
@@ -81,8 +86,7 @@ class MathModel:
                 f"machine_assign_{i}",
             )
 
-        print(f"      > [{steps}] constraints R3 has been created")
-        steps += 1
+        yield "constraints R3 created"
 
         for m in instance.M:
             ops = instance.O_m[m]
@@ -92,7 +96,7 @@ class MathModel:
                         continue
                     pij = instance.p.get((i, m), 0)
                     pji = instance.p.get((j, m), 0)
-                    # i antes de j
+
                     self.model += (
                         x.get(j, 0)
                         >= x.get(i, 0)
@@ -108,7 +112,7 @@ class MathModel:
                         ),
                         f"no_overlap_1_{i}_{j}_{m}",
                     )
-                    # j antes de i
+
                     self.model += (
                         x.get(i, 0)
                         >= x.get(j, 0)
@@ -124,59 +128,147 @@ class MathModel:
                         f"no_overlap_2_{i}_{j}_{m}",
                     )
 
-        print(f"      > [{steps}] constraints R4 & R5 has been created")
-        steps += 1
+        yield "constraints R4 & R5 created\n"
 
         self.x = x
         self.z = z
         self.y = y
         self.c_max = c_max
 
-        print("   > mathematical model has been completely built")
-
-    def run(
+    def optimize(
         self,
         *,
-        show_sol: bool = True,
         verbose: int = 0,
         time_limit: int = 1800,
-    ) -> None:
+    ) -> tuple:
+        logger = self._logger
+        feasible: bool
 
-        def gap(
-            *, ub: float, lb: float
-        ) -> float:
-            return round((100 * (ub - lb) / ub), 4)
-
-        if verbose not in [0, 1]:
-            self.model.verbose = 0
-        else:
-            self.model.verbose = verbose
-
-        print("   > starting CBC optimization\n\n")
+        self.model.verbose = verbose if verbose in [0, 1] else 0
 
         timer = Crono()
-        status = self.model.optimize(max_seconds=time_limit)
-        elapsed_time = timer.stop()
+        self._status = self.model.optimize(max_seconds=time_limit)
+        self._elapsed_time = round(timer.stop(), 4)
 
-        print(f"\n   > optimization finished | elapsed time: {elapsed_time} s")
+        if self.model.num_solutions:
+            self._makespan = self.c_max.x if self.model.num_solutions else None
+
+            self._assign_vect = [
+                machine
+                for op in self._instance.O
+                for machine in self._instance.M_i[op]
+                if self.z.get((op, machine), 0).x == 1
+            ]
+
+            self._start_times = [self.x.get((op), 0).x for op in self._instance.O]
+
+            for machine in self._instance.M:
+                ops_in_m = list()
+                for op, m in enumerate(self._assign_vect):
+                    if machine == m:
+                        ops_in_m.append(op)
+                ops_in_m = sorted(ops_in_m, key=lambda i: self._start_times[i])
+                self._machine_scheduling.append(ops_in_m)
+
+            logger.log(
+                f"optimization finished | elapsed time: {self._elapsed_time} s | makespan: {self._makespan}"
+            )
+
+            gap = evaluate_gap(ub=self._makespan, lb=self._instance.optimal_solution)
+
+            if self._status == OptimizationStatus.FEASIBLE:
+                logger.log(f"feasible integer solution found | gap = {gap}%")
+            if self._status == OptimizationStatus.OPTIMAL:
+                logger.log("optimal solution found | gap = 0%")
+
+            feasible = True
+        else:
+            logger.log("no feasible integer solution found in time limit :c")
+            feasible = False
+
+        logger.breakline()
+
+        return feasible, self._makespan, self._elapsed_time, gap
+
+    def _machine_of_op(self, *, op: int) -> int:
+        for machine, ops in self._machine_scheduling:
+            if op in ops:
+                return machine
+
+    def print(self, *, print_style: str = "array") -> None:
+        logger = self._logger
 
         if self.model.num_solutions:
             makespan = self.c_max.x
-            
-            if status == OptimizationStatus.FEASIBLE:
-                print(f"   > feasible integer solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%")
-            if status == OptimizationStatus.OPTIMAL:
-                print(f"   > optimal solution found | gap = {gap(ub=makespan, lb=self._instance.optimal_solution)}%")
 
-            print(f"      > makespan: {makespan}")
+            with logger:
+                logger.log(f"makespan: {makespan}")
 
-            if show_sol:
-                for i in self._instance.O:
-                    start = self.x[i].x
-                    machine = [
-                        m for m in self._instance.M_i[i] if self.z.get((i, m), 0).x >= 0.99
-                    ][0]
-                    print(f"      > operação {i} | início: {start}, na máquina {machine}")
+                if print_style == "each_op":
+                    for i in self._instance.O:
+                        start = self.x[i].x
+                        machine = [
+                            m
+                            for m in self._instance.M_i[i]
+                            if self.z.get((i, m), 0).x >= 0.99
+                        ][0]
+
+                        logger.log(
+                            f"operation: {i} | "
+                            f"machine assigned: {machine} | "
+                            f"start time: {start} | "
+                            f"end time: {start + self._instance.p[(i, machine)]}"
+                        )
+
+                if print_style == "arrays":
+                    for m, seq in enumerate(self._machine_scheduling):
+                        logger.log(
+                            f"m: {m} | "
+                            f"seq: {seq} | "
+                            f"starts: {[self._start_times[op] if not self._start_times[op].is_integer() else int(self._start_times[op]) for op in seq]} | "
+                            f"ends: {[self._start_times[op] + self._instance.p[(op, m)] if not (self._start_times[op] + self._instance.p[(op, m)]).is_integer() else int(self._start_times[op] + self._instance.p[(op, m)]) for op in seq]}"
+                        )
         else:
-            print("   > no feasible integer solution found in time limit :c")
-        print()
+            logger.log("no feasible integer solution found in time limit :c")
+
+    def save_gantt(self, gantt_output_path: Path) -> None:
+        logger = self._logger
+
+        with logger:
+            gantt_path = (
+                gantt_output_path
+                / f"{self._instance._instance_name} - solver solution.png"
+            )
+
+            try:
+                plot_gantt(
+                    start_times=self._start_times,
+                    machine_assignments=self._machine_scheduling,
+                    instance=self._instance,
+                    title=f"{self._instance._instance_name} - gantt - solver solution",
+                    verbose=False,
+                    output_file_path=gantt_path,
+                )
+            except Exception as e:
+                logger.log("couldn't plot gantt graph for solver solution")
+                with logger:
+                    logger.log(e)
+
+    def create_graph(self, *, tech_disjunc: bool = False) -> None:
+        self._graph = FJSSPGraph(
+            instance=self._instance,
+            machines_assignment=self._machine_scheduling,
+            tech_disjunc=tech_disjunc,
+            graph_type="complete fjssp",
+        )
+
+    def export_dag(
+        self,
+        dag_output_path: Path,
+        title: str,
+        arrowstyle: str = "->",
+        show: str = "real disjunctives",
+    ) -> None:
+        self._graph.export_visualization(
+            output_path=dag_output_path, title=title, arrowstyle=arrowstyle, show=show
+        )

@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 
 import src.fjssp_heurs as app
+from src.fjssp_heurs.utils.logger import LOGGER
 
 
 def parse_arguments():
@@ -12,7 +13,7 @@ def parse_arguments():
         "--instance",
         type=str,
         default="",
-        help="The complete file path to the instance file(s)",
+        help="the complete file path to the instance file(s)",
     )
 
     parser.add_argument(
@@ -20,13 +21,38 @@ def parse_arguments():
         "--method",
         type=str,
         default="",
-        help="available methods: 1. 'cbc': to solve with CBC solver | 2. 'SA': to solve with simulated annealing | 3. 'both': to solve with both methods",
+        choices=["cbc", "SA", "both"],
+        help="method(s) to optimize the problem",
     )
+
+    parser.add_argument(
+        "-t", "--timelimit", type=float, default=300, help="time limit to stop methods"
+    )
+
+    parser.add_argument(
+        "-salog",
+        "--salogwriting",
+        type=str,
+        default="N",
+        choices=["Y", "N"],
+        help="whether SA processing logs should be written to a file",
+    )
+
+    parser.add_argument(
+        "-sbplog",
+        "--sbplogwriting",
+        type=str,
+        default="N",
+        choices=["Y", "N"],
+        help="whether SBP processing logs should be written to a file.",
+    )
+
     args = parser.parse_args()
     return args
 
 
 def main(*, args: Namespace):
+    logger = LOGGER(log_path="execlog.log", out="both")
     data_path = Path("files")
     output_data_path = data_path.joinpath("output")
 
@@ -35,12 +61,30 @@ def main(*, args: Namespace):
 
     instance_path = Path(args.instance)
 
-    for message in app.run(
-        instance_path=instance_path,
-        output_folder_path=output_data_path,
-        method=args.method,
-    ):
-        print(f"> {message}")
+    logger.log("selected preferences:")
+    with logger:
+        logger.log(f"input path: {instance_path}")
+        logger.log(f"output path: {output_data_path}")
+        logger.log(f"method(s) to optimize FJSSP: {args.method}")
+        logger.log(f"time limit: {args.timelimit}\n")
+
+    logger.log("starting program")
+
+    h = 1
+    with logger:
+        for message in app.run(
+            instance_path=instance_path,
+            output_folder_path=output_data_path,
+            method=args.method,
+            logger=logger,
+            time_limit=args.timelimit,
+            sa_log_writing=True if args.salogwriting == "Y" else False,
+            sbp_log_writing=True if args.sbplogwriting == "Y" else False,
+        ):
+            logger.log(f"[{h}] {message}")
+            h += 1
+
+    logger.log("finishing program")
 
 
 if __name__ == "__main__":

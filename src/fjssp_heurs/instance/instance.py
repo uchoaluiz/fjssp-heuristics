@@ -2,6 +2,9 @@ from pathlib import Path
 import os
 import json
 
+from ..utils.logger import LOGGER
+
+
 class Instance:
     def __init__(self, input: Path) -> None:
         self.input_path = input
@@ -16,12 +19,13 @@ class Instance:
 
         self.O = []
         self.M = set()
-        self.M_i = {}  # M_i[i]: máquinas elegíveis para operação i
-        self.p = {}  # p[(i, m)]: tempo de processamento da operação i na máquina m
-        self.job_of_op = {}  # job que contém a operação i
+        self.M_i = dict()  # M_i[i]: máquinas elegíveis para operação i
+        self.p = dict()  # p[(i, m)]: tempo de processamento da operação i na máquina m
+        self.job_of_op = dict()  # job que contém a operação i
         self.O_j = []  # lista de operações para cada job
         self.P_j = []  # precedência (i, i') entre operações de um job
-        self.O_m = {}  # O_m[m]: operações que podem ser feitas na máquina m
+        self.O_m = dict()  # O_m[m]: operações que podem ser feitas na máquina m
+        self.S_j = dict()  # S_j[j]: lista da sequência tecnológica do job j
 
         with open(self.input_path, "r") as file:
             first_line = file.readline().strip()
@@ -73,84 +77,151 @@ class Instance:
             for m in self.M_i[i]:
                 self.O_m[m].append(i)
 
-    def print(self, type: str = "sets") -> None:
-        print()
-        print(":" * 50)
-        print("printing built instance".center(50))
-        print(":" * 50)
+        for job in range(self.num_jobs):
+            self.S_j[job] = [i for (i, _) in self.P_j[job]] + [self.P_j[job][-1][1]]
 
-        print(f"\n#jobs: {self.num_jobs} | #machines: {self.num_machines}\n")
+    def print(self, *, logger: LOGGER, type: str = "sets") -> None:
+        logger.log(f"#jobs: {self.num_jobs} | #machines: {self.num_machines}\n")
 
         if type in ["array", "all"]:
             for i, job in enumerate(self.jobs):
                 for j, operation in enumerate(job):
-                    print(f"job {i} | operação {j}")
-                    for machines in operation:
-                        print(
-                            f"   > máquina: {machines[0]} | tempo_process (p_im): {machines[1]}"
-                        )
-                    print()
-                print("~" * 10, end="\n\n")
+                    logger.log(f"job {i} | operation {j}")
+                    with logger:
+                        for machines in operation:
+                            logger.log(
+                                f"machine: {machines[0]} | process_time (p_im): {machines[1]}"
+                            )
+                        logger.breakline()
 
         if type in ["sets", "all"]:
-            print(f"O : conjunto global de operações:\n> {self.O}\n")
-            print(f"M : conjunto de máquinas:\n> {self.M}\n")
-            print(f"J : conjunto de jobs:\n> {set(range(self.num_jobs))}")
+            logger.log("O: set of global operations:")
+            with logger:
+                logger.log(f"{self.O}")
+                logger.breakline()
+            logger.log("M: set of machines:")
+            with logger:
+                logger.log(f"{self.M}")
+                logger.breakline()
+            logger.log("J: set of jobs:")
+            with logger:
+                logger.log(f"{set(range(self.num_jobs))}")
 
-            print()
-            print("~" * 10)
+            logger.breakline()
 
-            print("\nM_i: conjunto de máquinas elegíveis para a operação 'i':")
-            for oper, maqs in self.M_i.items():
-                print(f"   > M_{oper}: {maqs}")
+            logger.log("M_i: allowed machines for operation 'i':")
+            with logger:
+                for oper, maqs in self.M_i.items():
+                    logger.log(f"M_{oper}: {maqs}")
 
-            print()
-            print("~" * 10)
+            logger.breakline()
 
-            print("\nO_j: conjunto de operações do job 'j':")
-            for job, opers_job in enumerate(self.O_j):
-                print(f"   > O_{job}: {opers_job}")
+            logger.log("O_j: operations in job 'j':")
+            with logger:
+                for job, opers_job in enumerate(self.O_j):
+                    logger.log(f"O_{job}: {opers_job}")
 
-            print()
-            print("~" * 10)
+            logger.breakline()
 
-            print("\nP_j: sequência tecnológica do job 'j':")
-            for job, seqtec in enumerate(self.P_j):
-                print(f"   > job {job}: {self.P_j[job]}")
+            logger.log("S_j: technological sequence to job 'j':")
+            with logger:
+                for job, seqtec in self.S_j.items():
+                    logger.log(f"S_{job}: {seqtec}")
 
-            print()
-            print("~" * 10)
+            logger.breakline()
 
-            print("\nO_m : operações que podem ser processadas na máquina 'm':")
-            for maq, opers in self.O_m.items():
-                print(f"   > O_{maq}: {opers}")
+            logger.log("P_j: technological sequence edges to job 'j':")
+            with logger:
+                for job, seqtec in enumerate(self.P_j):
+                    logger.log(f"job {job}: {self.P_j[job]}")
 
-            print()
-            print("~" * 10)
+            logger.breakline()
 
-            print("\np_{i,m} : tempo de processamento da operação 'i' na máquina m:")
-            for (oper, maq), process in self.p.items():
-                print(f"   > p_({oper}, {maq}): {process}")
+            logger.log("O_m: operations that can be processed by machine 'm':")
+            with logger:
+                for maq, opers in self.O_m.items():
+                    logger.log(f"O_{maq}: {opers}")
 
-            print()
-            print("~" * 10)
+            logger.breakline()
 
-            print("\nj(o) : job no qual a operação 'o' faz parte:")
-            for oper, job in self.job_of_op.items():
-                print(f"   > a operação {oper} faz parte do job {job}")
+            logger.log("p_{i,m}: processing time of operation 'i' in machine 'm':")
+            with logger:
+                for (oper, maq), process in self.p.items():
+                    logger.log(f"p_({oper}, {maq}): {process}")
 
-            print()
-            print("~" * 10)
-            print()
+            logger.breakline()
+
+            logger.log("j(o): job to which operation 'o' belongs:")
+            with logger:
+                for oper, job in self.job_of_op.items():
+                    logger.log(f"operation {oper} belongs to job {job}")
+
+        logger.breakline(2)
 
     def get_optimal(self) -> int:
         json_path = os.path.join("files/instances", "instances.json")
 
-        with open(json_path, 'r') as file:
+        with open(json_path, "r") as file:
             instances = json.load(file)
-        
+
         for instance in instances:
             if instance["name"] == self._instance_name:
                 return instance.get("optimum")
-        
+
         return None
+
+    def write(self, *, instance_path: Path) -> None:
+        file_path = instance_path / f"instance - {self._instance_name}.inst"
+        inst_file = open(
+            file_path,
+            "w",
+            encoding="utf-8",
+        )
+
+        inst_file.write(f"#jobs: {self.num_jobs} | #machines: {self.num_machines}\n")
+
+        inst_file.write("O: set of global operations:\n")
+        inst_file.write(f"{self.O}\n")
+
+        inst_file.write("M: set of machines:\n")
+
+        inst_file.write(f"{self.M}\n")
+
+        inst_file.write("J: set of jobs:\n")
+
+        inst_file.write(f"{set(range(self.num_jobs))}\n")
+
+        inst_file.write("M_i: allowed machines for operation 'i':\n")
+
+        for oper, maqs in self.M_i.items():
+            inst_file.write(f"M_{oper}: {maqs}\n")
+
+        inst_file.write("O_j: operations in job 'j':\n")
+
+        for job, opers_job in enumerate(self.O_j):
+            inst_file.write(f"O_{job}: {opers_job}\n")
+
+        inst_file.write("S_j: technological sequence to job 'j':\n")
+
+        for job, seqtec in self.S_j.items():
+            inst_file.write(f"S_{job}: {seqtec}\n")
+
+        inst_file.write("P_j: technological sequence edges to job 'j':\n")
+
+        for job, seqtec in enumerate(self.P_j):
+            inst_file.write(f"job {job}: {self.P_j[job]}\n")
+
+        inst_file.write("O_m: operations that can be processed by machine 'm':\n")
+
+        for maq, opers in self.O_m.items():
+            inst_file.write(f"O_{maq}: {opers}\n")
+
+        inst_file.write("p_{i,m}: processing time of operation 'i' in machine 'm':\n")
+
+        for (oper, maq), process in self.p.items():
+            inst_file.write(f"p_({oper}, {maq}): {process}\n")
+
+        inst_file.write("j(o): job to which operation 'o' belongs:\n")
+
+        for oper, job in self.job_of_op.items():
+            inst_file.write(f"operation {oper} belongs to job {job}\n")

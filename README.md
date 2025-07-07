@@ -41,7 +41,7 @@ The codebase is designed with **robustness**, **modularity**, and **scalability*
 To execute the tool, use the `main.py` script with the following command-line arguments:
 
 ```bash
-python main.py -i path/to/instance.txt -m both -t 60 -salog N -sbplog N
+python main.py -i path/to/instance.txt -m both -t 60 -salog N -sbplog N -seed 2025
 ```
 
 ### 🔸 **Available Arguments**

@@ -90,6 +90,18 @@ Each instance consists of:
 3 2 0 2 2 1 1 1 2 2 1 3 2 4     # job 1: 3 ops | 1st op: 2 eligible machines (p_m0 = 2, p_m2 = 1) | 2nd op: 1 eligible machine (p_m1 = 2) | 3rd op: 2 eligible machines (p_m1 = 3, p_m2 = 4)
 ```
 
+---
+
+## 📊 Used Instances
+
+The instances imported into the project were extracted from the literature, as follows:
+- `barnes` - J. B. Chambers and J. W. Barnes. [Flexible Job Shop Scheduling by Tabu Search](https://doi.org/10.1080/07408179508936739). The University of Texas, Austin, TX, Technical Report Series ORP96-09, Graduate Program in Operations Research and Industrial Engineering, 1996.
+- `kacem` - I. Kacem, S. Hammadi, and P. Borne. [Pareto-Optimality Approach for Flexible, Job-Shop Scheduling Problems: Hybridization of Evolutionary Algorithms and Fuzzy Logic](https://doi.org/10.1016/S0378-4754%2802%2900019-8). Mathematics and Computers in Simulation, 60(3-5):245–276, 2002.
+
+Executions results - including DAGs and Gantts - can be found in the folder `results`
+
+---
+
 ## 📝 Execution Logs
 
 The system produces structured log files to help monitor the behavior and performance of different components. There are three main types of logs:

@@ -68,6 +68,9 @@ python main.py -i path/to/instance.txt -m both -t 60 -salog N -sbplog N
 - `'Y'` – write SBP logs to `sbplog.log`  
 - `'N'` – do not write SBP logs (default behavior)
 
+**`-seed` / `--seed`**  
+&nbsp;&nbsp;&nbsp;&nbsp;Randomness factor
+
 
 ---
 

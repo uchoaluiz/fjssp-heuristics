@@ -22,6 +22,7 @@ def run(
     logger: LOGGER,
     sa_log_writing: bool,
     sbp_log_writing: bool,
+    seed: int = 42,
 ):
     inst = Instance(instance_path)
     results_df = pd.DataFrame()
@@ -98,7 +99,7 @@ def run(
             yield "built a solution representation"
 
             yield "building a feasible initial solution with constructive heuristic"
-            builder = SolutionBuilder(logger=logger)
+            builder = SolutionBuilder(logger=logger, seed=seed)
             builder.define_hiperparams(alpha_grasp=0.35)
 
             builder.build_solution(
@@ -140,12 +141,13 @@ def run(
 
             yield "starting SA optimization"
             sa = SimulatedAnnealing(
-                local_search=LocalSearch(logger=logger),
+                local_search=LocalSearch(logger=logger, seed=seed),
                 log_writing=sa_log_writing,
                 max_time=time_limit,
                 sbp_solver=ShiftingBottleneck(
                     log_out="off" if not sbp_log_writing else "file"
                 ),
+                seed=seed,
             )
 
             sa_sol, sa_time, sa_gap = sa.optimize(solution=sa_sol)

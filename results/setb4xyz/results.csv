@@ -1,0 +1,2 @@
+solver makespan,solver time,solver gap,constr.heur makespan,constr.heur gap,SA makespan,SA time,SA gap
+1171.0,60.1591,22.9718,1159.0,22.1743,1093,62.60710629999994,17.4748

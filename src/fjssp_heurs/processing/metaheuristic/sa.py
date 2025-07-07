@@ -138,108 +138,71 @@ class SimulatedAnnealing:
         self.logger.log(it_log)
 
     def _calculate_initial_temperature(
-        self,
-        solution: Solution,
-        max_iterations: int,
-        gamma: float = 0.5,
+        self, solution: Solution, max_iterations: int
     ) -> float:
-        """
-        Calculates an appropriate initial temperature for the Simulated Annealing algorithm.
-
-        This method performs a series of random moves and observes the change in makespan
-        to estimate an initial temperature that yields a desired acceptance rate.
-
-        Args:
-            solution: The initial Solution object.
-            max_iterations: Maximum iterations to run for temperature calculation.
-            gamma: Target acceptance ratio for uphill moves.
-
-        Returns:
-            The calculated initial temperature.
-        """
         logger = self.logger
-
-        ls = LocalSearch(logger=logger)
-        ls._define_jssp_solver(sbp=self._sbp)
-
         T = self.initial_temperature_param
-        continue_calculation = True
-        min_accept = int(gamma * max_iterations)
+        max_reasonable_T = solution._makespan * 5
+        min_reasonable_T = solution._makespan * 0.1
 
-        max_T = solution._makespan * 20
+        acceptance_history = []
+        delta_history = []
 
-        deltas: list[float] = []
-        # sample some deltas to get an initial estimate
-        for _ in range(min(100, max_iterations)):
-            _, sol_prime = ls.generate_adaptive_neighbor_with_tabu(
-                sol=solution, intensity_level=0
-            )
-            if sol_prime:
-                delta = sol_prime._makespan - solution._makespan
-                if delta > 0:
-                    deltas.append(delta)
+        logger.log(
+            f"[tempcalc] starting T0 calculation with limits [{min_reasonable_T:.2f}, {max_reasonable_T:.2f}]"
+        )
 
-        if deltas:
-            # estimate T based on median delta and target acceptance (e.g., 80%)
-            T_est = -np.median(deltas) / np.log(0.8)
-            T = min(T_est, max_T)
+        self.timer = Crono()
+        temp_calc_time_limit = 0.15 * self.max_time
 
-        with logger:
-            logger.log(f"[tempcalc] starting T0={T:.4f}, min_accept={min_accept}")
-            logger.breakline()
-
-            self.timer = Crono()  # start timer for temperature calculation
-
-            while (
-                continue_calculation and self.timer.elapsed_time() < 0.2 * self.max_time
-            ):
-                accept_count = 0
-
-                for iteration in range(max_iterations):
-                    makespan_prime, sol_prime = ls.generate_adaptive_neighbor_with_tabu(
-                        sol=solution,
-                        intensity_level=0,
-                    )
-
-                    if sol_prime is None:
-                        continue
-
-                    current_makespan = solution._makespan
-                    delta = makespan_prime - current_makespan
-
-                    if delta <= 0:  # always accept improving or equal moves
-                        accept_count += 1
-                    else:  # uphill move
-                        rand = np.random.uniform(0, 1)
-                        if rand < exp(-delta / T):
-                            accept_count += 1
-
-                    logger.log(
-                        f"iter: {iteration + 1} | "
-                        f"T: {T:.4f} | "
-                        f"Δ: {delta:.2f} | "
-                        f"accept_count: {accept_count}/{min_accept}"
-                    )
-
-                    if accept_count >= min_accept:
-                        break
-
-                logger.log(
-                    f"[tempcalc] T={T:.4f} → acceptances: {accept_count}/{min_accept}"
+        while self.timer.elapsed_time() < temp_calc_time_limit:
+            accept_count = 0
+            for iteration in range(max_iterations):
+                _, sol_prime = self.local_search.generate_adaptive_neighbor_with_tabu(
+                    sol=solution, intensity_level=0
                 )
 
-                if accept_count >= min_accept:
-                    logger.log("[tempcalc] found suitable initial T")
-                    continue_calculation = False
+                if sol_prime is None:
+                    continue
+
+                delta = sol_prime._makespan - solution._makespan
+                delta_history.append(delta)
+
+                if delta <= 0:
+                    accept_count += 1
                 else:
-                    old_T = T
-                    T *= self.beta  # increase temperature if acceptance is too low
-                    logger.log(f"[tempcalc] increased T: {old_T:.4f} → {T:.4f}")
+                    rand = np.random.uniform(0, 1)
+                    if rand < exp(-delta / T):
+                        accept_count += 1
 
-            logger.breakline()
-            logger.log(f"[tempcalc] final initial T: {T:.4f}")
+                acceptance_rate = accept_count / (iteration + 1)
+                acceptance_history.append(acceptance_rate)
 
-        return min(T, max_T)
+                if (
+                    len(acceptance_history) > 20
+                    and np.mean(acceptance_history[-20:]) > 0.3
+                ):
+                    break
+
+            current_acceptance = accept_count / max_iterations
+
+            if current_acceptance < 0.2:
+                T *= 1.1
+            elif current_acceptance > 0.5:
+                T *= 0.9
+            else:
+                break
+            T = min(max(T, min_reasonable_T), max_reasonable_T)
+
+            logger.log(
+                f"[tempcalc] T={T:.2f} | "
+                f"Acceptance={current_acceptance:.2f} | "
+                f"Δ median={np.median(delta_history):.2f} | "
+                f"Time={self.timer.elapsed_time():.2f}s"
+            )
+
+        logger.log(f"[tempcalc] Final initial T: {T:.2f}")
+        return T
 
     def optimize(self, *, solution: Solution) -> Solution:
         """
@@ -270,7 +233,7 @@ class SimulatedAnnealing:
         logger.log(msg)
         self.old_logger.log(msg)
         self.start_temperature = self._calculate_initial_temperature(
-            solution=solution, gamma=self.alpha, max_iterations=max_iterations_per_temp
+            solution=solution, max_iterations=max_iterations_per_temp
         )
         logger.log("initial temperature calculated\n")
 

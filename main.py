@@ -47,6 +47,10 @@ def parse_arguments():
         help="whether SBP processing logs should be written to a file.",
     )
 
+    parser.add_argument(
+        "-seed", "--seed", type=int, default=42, help="wanted stochastic seed"
+    )
+
     args = parser.parse_args()
     return args
 
@@ -66,7 +70,11 @@ def main(*, args: Namespace):
         logger.log(f"input path: {instance_path}")
         logger.log(f"output path: {output_data_path}")
         logger.log(f"method(s) to optimize FJSSP: {args.method}")
-        logger.log(f"time limit: {args.timelimit}\n")
+        logger.log(f"time limit: {args.timelimit}")
+        logger.log(f"write SA logs? {'yes' if args.salogwriting == 'Y' else 'no'}")
+        logger.log(f"write SBP logs? {'yes' if args.sbplogwriting == 'Y' else 'no'}")
+        logger.log(f"randomness seed: {args.seed}")
+    logger.breakline()
 
     logger.log("starting program")
 
@@ -80,6 +88,7 @@ def main(*, args: Namespace):
             time_limit=args.timelimit,
             sa_log_writing=True if args.salogwriting == "Y" else False,
             sbp_log_writing=True if args.sbplogwriting == "Y" else False,
+            seed=args.seed,
         ):
             logger.log(f"[{h}] {message}")
             h += 1

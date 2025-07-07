@@ -31,6 +31,7 @@ class SimulatedAnnealing:
         final_temperature: float = 0.01,
         max_time: int = 300,
         log_writing: bool = False,
+        seed: int = 42,
     ) -> None:
         """
         Initializes the Simulated Annealing optimizer.
@@ -44,6 +45,7 @@ class SimulatedAnnealing:
             final_temperature: Stopping temperature criterion.
             max_time: Maximum runtime in seconds.
             log_writing: Whether to print detailed logs to a file.
+            seed: Randomness seed.
         """
         self._sbp = sbp_solver
         self.local_search: LocalSearch = local_search
@@ -80,6 +82,8 @@ class SimulatedAnnealing:
         self.current_iteration: int = 0
         self.best_solution: Solution = None
         self.start_temperature: float = 0.0
+
+        np.random.seed(seed)
 
     def _log_iteration(
         self,

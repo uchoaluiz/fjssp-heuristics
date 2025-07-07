@@ -6,9 +6,10 @@ from ...utils.logger import LOGGER
 
 
 class SolutionBuilder:
-    def __init__(self, logger: LOGGER) -> None:
+    def __init__(self, logger: LOGGER, seed: int = 42) -> None:
         self._logger = copy(logger)
         self._logger.level += 1
+        np.random.seed(seed)
 
     def _define_grasp_alpha(self, *, alpha: float = 0.35) -> None:
         self._grasp_alpha = alpha

@@ -1,6 +1,6 @@
 from collections import deque
 from copy import copy
-from random import sample, shuffle
+import random
 
 from ...processing.metaheuristic.solution import Solution
 from ...utils.logger import LOGGER
@@ -15,7 +15,7 @@ class LocalSearch:
     to avoid revisiting previously explored solutions, enhancing the search process.
     """
 
-    def __init__(self, logger: LOGGER) -> None:
+    def __init__(self, logger: LOGGER, seed: int = 42) -> None:
         """
         Initializes the LocalSearch with a logger and Tabu Search parameters.
 
@@ -26,6 +26,7 @@ class LocalSearch:
         self._logger.level += 1
         self.tabu: dict[int, dict[str, deque]] = {}
         self._sbp: ShiftingBottleneck = None
+        random.seed(seed)
 
     def _define_jssp_solver(self, sbp: ShiftingBottleneck) -> None:
         """
@@ -118,7 +119,7 @@ class LocalSearch:
                         logger.log("new solution hash with no flexible critical ops..")
                     return None, None
 
-                shuffle(critical_path_with_flex)
+                random.shuffle(critical_path_with_flex)
                 self.tabu[sol_hash] = {
                     "queue": deque(critical_path_with_flex),
                     "tabu_moves": deque(
@@ -142,7 +143,7 @@ class LocalSearch:
                             "known solution hash with no flexible critical ops.."
                         )
                     return None, None
-                shuffle(critical_path_with_flex)
+                random.shuffle(critical_path_with_flex)
                 self.tabu[sol_hash]["queue"] = deque(critical_path_with_flex)
                 logger.log(
                     f"[tabu] reshuffling a critical path for sol {sol_hash}: {critical_path}"
@@ -201,7 +202,7 @@ class LocalSearch:
                     pct = min(0.3, 0.15 + 0.3 * T_rel)
                     critical_ops = list(self.tabu[sol_hash]["queue"])
                     num_ops = max(1, int(pct * len(critical_ops)))
-                    selected_ops = sample(critical_ops, num_ops)
+                    selected_ops = random.sample(critical_ops, num_ops)
 
                     for op_to_change in selected_ops:
                         if op_to_change in self.tabu[sol_hash]["queue"]:
@@ -288,7 +289,7 @@ class LocalSearch:
         else:
             logger.log(f"[tabu] op {op} HAS alternative machines")
 
-        shuffle(alternatives)
+        random.shuffle(alternatives)
 
         logger.log(f"alternative machines to swap for op: {op}: {alternatives}")
 

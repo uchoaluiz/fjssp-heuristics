@@ -232,7 +232,7 @@ class DAG:
         except TimeoutError as e:
             plt.close()
 
-            print(f"[WARNING]: {str(e)}.")
+            print(f"\n[WARNING]: {str(e)}.")
             print("DAG wasn't wrote because of its excessive flexibility.")
             print(
                 "you can try using a greater time_limit parameter on method 'export_visualization()'\n"
@@ -411,7 +411,7 @@ class FJSSPGraph:
         title: str,
         arrowstyle: str = "->",
         show: str = "visual disjunctives",
-        time_limit: float = 10.0,
+        time_limit: float = 30.0,
     ):
         if show not in [
             "visual disjunctives",
